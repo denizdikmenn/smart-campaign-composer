@@ -2,6 +2,7 @@ package customers
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -81,6 +82,77 @@ func TestFilters(t *testing.T) {
 			t.Fatalf("past end: items=%d total=%d err=%v", len(items), total, err)
 		}
 	})
+
+	// Orders for C (2) and A (1); B has a cart addition only.
+	_, err = pool.Exec(ctx, `
+		INSERT INTO orders (customer_id, category, total_amount, placed_at)
+		SELECT id, 'books', 100, now() - interval '3 days' FROM customers WHERE email IN ('a@example.com', 'c@example.com');
+		INSERT INTO orders (customer_id, category, total_amount, placed_at)
+		SELECT id, 'toys', 250, now() - interval '1 day' FROM customers WHERE email = 'c@example.com';
+		INSERT INTO cart_additions (customer_id, category, added_at)
+		SELECT id, 'shoes', now() FROM customers WHERE email = 'b@example.com'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("sort", func(t *testing.T) {
+		first := func(srt Sort) string {
+			items, _, err := s.List(ctx, Filter{Sort: srt}, time.Now(), 100, 0)
+			if err != nil || len(items) != 5 {
+				t.Fatalf("%+v: items=%d err=%v", srt, len(items), err)
+			}
+			return items[0].FirstName
+		}
+		if got := first(Sort{Field: "total_spent", Desc: true}); got != "C" {
+			t.Errorf("total_spent desc: first = %s, want C", got)
+		}
+		if got := first(Sort{Field: "name", Desc: true}); got != "E" {
+			t.Errorf("name desc: first = %s, want E", got)
+		}
+		// NULL last_order_at sorts last in both directions.
+		if got := first(Sort{Field: "last_order_at"}); got != "A" && got != "C" {
+			t.Errorf("last_order_at asc: first = %s, want a buyer", got)
+		}
+		if got := first(Sort{Field: "last_order_at", Desc: true}); got != "C" {
+			t.Errorf("last_order_at desc: first = %s, want C", got)
+		}
+	})
+
+	t.Run("get", func(t *testing.T) {
+		var cID, bID int64
+		if err := pool.QueryRow(ctx, "SELECT id FROM customers WHERE email = 'c@example.com'").Scan(&cID); err != nil {
+			t.Fatal(err)
+		}
+		if err := pool.QueryRow(ctx, "SELECT id FROM customers WHERE email = 'b@example.com'").Scan(&bID); err != nil {
+			t.Fatal(err)
+		}
+		d, err := s.Get(ctx, cID)
+		if err != nil || d.Orders != 2 || d.TotalSpent != 350 || len(d.RecentOrders) != 2 || d.RecentOrders[0].Category != "toys" || d.Carts != 0 {
+			t.Fatalf("C: %+v err=%v", d, err)
+		}
+		d, err = s.Get(ctx, bID)
+		if err != nil || d.Carts != 1 || len(d.RecentCarts) != 1 || d.LastCartAt == nil || d.RecentOrders == nil {
+			t.Fatalf("B: %+v err=%v", d, err)
+		}
+		if _, err := s.Get(ctx, 999999); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("unknown id: err = %v", err)
+		}
+	})
+}
+
+func TestParseSort(t *testing.T) {
+	if s, err := ParseSort("", ""); err != nil || s != (Sort{}) || s.orderBy() != " ORDER BY s.id ASC" {
+		t.Fatalf("default: %+v %q %v", s, s.orderBy(), err)
+	}
+	s, err := ParseSort("name", "desc")
+	if err != nil || s.orderBy() != " ORDER BY lower(s.last_name) DESC NULLS LAST, lower(s.first_name) DESC NULLS LAST, s.id" {
+		t.Fatalf("name desc: %q %v", s.orderBy(), err)
+	}
+	for _, bad := range [][2]string{{"email", ""}, {"s.id; DROP TABLE customers", ""}, {"name", "sideways"}} {
+		if _, err := ParseSort(bad[0], bad[1]); err == nil {
+			t.Errorf("%q: expected error", bad)
+		}
+	}
 }
 
 // reference computes the audiences straight from the generated dataset, as an

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { previewCustomers, suggestAudiences, SuggestError, type AudienceAlternative, type PreviewCustomer, type SuggestionResponse } from '../api'
 import AlternativeCard from './AlternativeCard.vue'
 import PreviewSheet from './PreviewSheet.vue'
@@ -13,7 +13,11 @@ const EXAMPLES = [
 ]
 const STAGES = ['Reading your brief…', 'Designing audience alternatives…', 'Counting matching customers…']
 
-const emit = defineEmits<{ select: [alternative: AudienceAlternative | null] }>()
+const emit = defineEmits<{
+  select: [alternative: AudienceAlternative | null]
+  /** A response arrived; true when it contains selectable options. */
+  generated: [hasOptions: boolean]
+}>()
 
 const brief = ref('')
 const loading = ref(false)
@@ -35,8 +39,6 @@ const textarea = ref<HTMLTextAreaElement | null>(null)
 function refine() {
   textarea.value?.focus()
 }
-
-const selected = computed(() => result.value?.alternatives.find((a) => a.id === selectedId.value) ?? null)
 
 const badges = computed(() => {
   const alts = selectable.value
@@ -72,6 +74,7 @@ async function generate() {
     result.value = res
     selectedId.value = ''
     emit('select', null)
+    emit('generated', res.outcome === 'supported' && res.alternatives.some((a) => !a.empty))
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') return
     error.value = e instanceof Error ? e.message : 'Something went wrong'
@@ -120,9 +123,67 @@ function choose(a: AudienceAlternative) {
   emit('select', a)
 }
 
+// --- option row / slider ---
+// Recommended option sits in the middle of three (the "featured" position).
+const ordered = computed(() => {
+  const alts = result.value?.alternatives ?? []
+  const rec = alts.findIndex((a) => a.primary)
+  if (alts.length !== 3 || rec < 0 || rec === 1) return alts
+  const rest = alts.filter((_, i) => i !== rec)
+  return [rest[0]!, alts[rec]!, rest[1]!]
+})
+const single = computed(() => !allEmpty.value && ordered.value.length === 1)
+const resultKey = ref(0)
+const track = ref<HTMLElement | null>(null)
+const canScroll = ref(false) // options don't all fit: show slider controls
+const active = ref(0) // option closest to the slider centre
+
+function cards() {
+  return Array.from(track.value?.children ?? []) as HTMLElement[]
+}
+
+function measure() {
+  const el = track.value
+  if (!el) return
+  // Layout-based, not scrollWidth: scrollWidth includes the scaled-up recommended
+  // card's transform, which would wrongly switch a fitting row into slider mode.
+  const last = cards().at(-1)
+  const padRight = parseFloat(getComputedStyle(el).paddingRight) || 0
+  canScroll.value = !!last && last.offsetLeft + last.offsetWidth + padRight > el.clientWidth + 1
+  const mid = el.scrollLeft + el.clientWidth / 2
+  const dist = cards().map((c) => Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid))
+  active.value = dist.length ? dist.indexOf(Math.min(...dist)) : 0
+}
+
+function go(i: number) {
+  const el = track.value
+  const card = cards()[i]
+  if (!el || !card) return
+  el.scrollTo({ left: card.offsetLeft - (el.clientWidth - card.offsetWidth) / 2 })
+}
+
+// On each new response: replay the entrance and start the slider on the recommended option.
+watch(result, async (r) => {
+  if (!r) return
+  resultKey.value++
+  await nextTick()
+  measure()
+  const rec = ordered.value.findIndex((a) => a.primary)
+  if (canScroll.value && rec > 0) {
+    const el = track.value
+    if (el) el.style.scrollBehavior = 'auto' // jump, don't animate, on first show
+    go(rec)
+    if (el) el.style.scrollBehavior = ''
+    measure()
+  }
+})
+
+window.addEventListener('resize', measure)
+
 onUnmounted(() => {
   controller?.abort()
   clearInterval(timer)
+  window.removeEventListener('resize', measure)
 })
 </script>
 
@@ -222,29 +283,81 @@ onUnmounted(() => {
           No customers match these targeting conditions. The rules are valid; try adjusting the timeframe or thresholds.
         </p>
         <p v-else class="meta" role="status">
-          {{ result.message ? result.message + ' ' : '' }}Choose an audience to continue.
+          {{ result.message ? result.message + ' ' : '' }}{{ ordered.length > 1 ? 'Choose an audience to continue.' : '' }}
+        </p>
+        <!-- One option is a real result, not a missing render: say why and how to get variants. -->
+        <p v-if="single" class="single">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.4" /><path d="M8 7.2v3.6M8 5.2v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+          <span>
+            <strong>One audience matches your brief exactly.</strong>
+            It fixes every targeting detail, so there was nothing to vary without changing what you asked for. To compare
+            options, leave something open, for example “in the last 30 to 60 days”, then regenerate.
+          </span>
         </p>
         <ul v-if="result.warnings.length" class="warnings">
           <li v-for="w in result.warnings" :key="w">{{ w }}</li>
         </ul>
-      <div class="alts" :class="{ stale: loading }" role="radiogroup" aria-label="Audience alternatives">
-        <AlternativeCard
-          v-for="a in result.alternatives"
-          :key="a.id"
-          :alternative="a"
-          :total="result.total_customers"
-          :selected="a.id === selectedId"
-          :badge="badges[a.id]"
-          @select="choose(a)"
-          @preview="openPreview(a)"
-        />
-      </div>
+        <div class="slider" :class="{ scrollable: canScroll }">
+          <!-- Keyed per response so the cards replay their entrance animation. -->
+          <div
+            :key="resultKey"
+            ref="track"
+            class="alts track"
+            :class="[`count-${ordered.length}`, { stale: loading, ghosted: single }]"
+            role="radiogroup"
+            aria-label="Audience alternatives"
+            @scroll.passive="measure"
+          >
+            <!-- Single result: static placeholders keep the 3-card layout. Not skeletons (no shimmer),
+                 since nothing more is loading. Decorative; the note below carries the text for AT. -->
+            <div v-if="single" class="ghost" aria-hidden="true">
+              <span class="ghost-icon">
+                <svg viewBox="0 0 16 16"><path d="M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+              </span>
+              <p class="ghost-title">No broader option</p>
+              <p>Your brief fixes every targeting detail, so widening it would change what you asked for.</p>
+            </div>
+            <AlternativeCard
+              v-for="(a, i) in ordered"
+              :key="a.id"
+              :alternative="a"
+              :index="single ? 1 : i"
+              :total="result.total_customers"
+              :selected="a.id === selectedId"
+              :badge="badges[a.id]"
+              @select="choose(a)"
+              @preview="openPreview(a)"
+            />
+            <div v-if="single" class="ghost" aria-hidden="true">
+              <span class="ghost-icon">
+                <svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+              </span>
+              <p class="ghost-title">Want options to compare?</p>
+              <p>Leave something open, such as “in the last 30 to 60 days”, and regenerate.</p>
+            </div>
+          </div>
+          <div v-if="canScroll" class="controls">
+            <button type="button" class="nav" aria-label="Previous option" :disabled="active === 0" @click="go(active - 1)">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+            <span class="dots">
+              <button
+                v-for="(a, i) in ordered"
+                :key="a.id"
+                type="button"
+                class="dot"
+                :class="{ on: i === active }"
+                :aria-label="`Show option ${i + 1}: ${a.name}`"
+                :aria-current="i === active ? 'true' : undefined"
+                @click="go(i)"
+              />
+            </span>
+            <button type="button" class="nav" aria-label="Next option" :disabled="active === ordered.length - 1" @click="go(active + 1)">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+          </div>
+        </div>
       </template>
-      <p v-if="selected" class="chosen" role="status">
-        Selected <strong>{{ selected.name }}</strong>:
-        {{ selected.counts.email_eligible.toLocaleString() }} reachable by email,
-        {{ selected.counts.sms_eligible.toLocaleString() }} by SMS.
-      </p>
     </div>
     <PreviewSheet
       :alternative="previewFor"
@@ -379,10 +492,199 @@ button {
 .alts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 .alts.stale {
   opacity: 0.5;
+  transition: opacity 0.2s;
+}
+/* Card row: all options side by side when they fit (easy comparison);
+   otherwise a swipeable, snapping slider. */
+.track {
+  position: relative; /* offsetParent for the cards' offsetLeft */
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(min(290px, 84%), 1fr);
+  align-items: stretch;
+  /* Room for hover lift and shadows, which overflow:auto would clip. */
+  /* Room for the scaled-up recommended card, its glow and hover lift. */
+  margin: -26px -14px -34px;
+  padding: 26px 14px 38px;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.single {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+}
+.single svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.single strong {
+  color: var(--text);
+}
+/* Single result with placeholders: three equal columns that never overflow.
+   The note is redundant with the placeholders on wide screens; visually hide it
+   there (still read by screen readers, since the placeholders are aria-hidden). */
+.track.ghosted {
+  grid-auto-columns: minmax(0, 1fr);
+}
+.ghost {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  border: 1.5px dashed #c9d5c4;
+  border-radius: 20px;
+  background: rgb(255 255 255 / 0.4);
+  transform: scale(0.96);
+  animation: ghost-in 0.45s ease-out backwards;
+}
+.ghost:last-child {
+  animation-delay: 0.18s;
+}
+.ghost p {
+  margin: 0;
+  max-width: 240px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.ghost .ghost-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ghost-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+}
+.ghost-icon svg {
+  width: 16px;
+  height: 16px;
+}
+@keyframes ghost-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+@media (min-width: 861px) {
+  .single {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 860px) {
+  .track.ghosted .ghost {
+    display: none;
+  }
+}
+/* One or two options: centred at a readable width instead of stretched. */
+.track.count-1 {
+  grid-auto-columns: minmax(0, 560px);
+  justify-content: center;
+}
+.track.count-2 {
+  grid-auto-columns: minmax(min(290px, 84%), 480px);
+  justify-content: center;
+}
+/* Clip only in slider mode; otherwise shadows would be cut off. */
+.scrollable .track {
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+}
+.track::-webkit-scrollbar {
+  display: none;
+}
+.track > * {
+  scroll-snap-align: center;
+}
+.scrollable .track {
+  mask-image: linear-gradient(to right, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+}
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+.nav {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  transition: background-color 0.15s;
+}
+.nav svg {
+  width: 16px;
+  height: 16px;
+}
+.nav:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+.nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.dots {
+  display: flex;
+  gap: 4px;
+}
+.dot {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  position: relative;
+}
+.dot::after {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 99px;
+  background: #b9c8b4;
+  transition: inset 0.2s, background-color 0.2s;
+}
+.dot.on::after {
+  inset: 9px 2px;
+  background: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    scroll-behavior: auto;
+  }
 }
 .skeleton {
   height: 230px;
@@ -395,12 +697,6 @@ button {
   to {
     background-position: -200% 0;
   }
-}
-.chosen {
-  margin: 4px 0 0;
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: var(--accent-soft);
 }
 .outcome {
   margin: 0;

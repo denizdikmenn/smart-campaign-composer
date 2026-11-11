@@ -35,6 +35,49 @@ func (f *fakeStore) List(_ context.Context, flt customers.Filter, _ time.Time, l
 	return []customers.Customer{}, 0, f.err
 }
 
+func (f *fakeStore) Get(_ context.Context, id int64) (customers.CustomerDetail, error) {
+	if f.err != nil {
+		return customers.CustomerDetail{}, f.err
+	}
+	if id != 7 {
+		return customers.CustomerDetail{}, customers.ErrNotFound
+	}
+	return customers.CustomerDetail{Customer: customers.Customer{ID: 7}, RecentOrders: []customers.Order{}}, nil
+}
+
+func TestListSort(t *testing.T) {
+	s := &fakeStore{}
+	if rec := getCustomers(t, s, "/api/customers?sort=total_spent&order=desc"); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	if s.filter.Sort != (customers.Sort{Field: "total_spent", Desc: true}) {
+		t.Fatalf("sort = %+v", s.filter.Sort)
+	}
+	for _, q := range []string{"sort=id%3BDROP", "sort=email", "sort=name&order=up", "order=DESC"} {
+		if rec := getCustomers(t, &fakeStore{}, "/api/customers?"+q); rec.Code != http.StatusBadRequest {
+			t.Errorf("%q: status = %d, want 400", q, rec.Code)
+		}
+	}
+}
+
+func TestGetCustomer(t *testing.T) {
+	for target, want := range map[string]int{
+		"/api/customers/7":       http.StatusOK,
+		"/api/customers/8":       http.StatusNotFound,
+		"/api/customers/0":       http.StatusBadRequest,
+		"/api/customers/abc":     http.StatusBadRequest,
+		"/api/customers/summary": http.StatusOK, // literal route still wins over {id}
+	} {
+		if rec := getCustomers(t, &fakeStore{}, target); rec.Code != want {
+			t.Errorf("%s: status = %d, want %d", target, rec.Code, want)
+		}
+	}
+	rec := getCustomers(t, &fakeStore{err: errors.New("pq: secret")}, "/api/customers/7")
+	if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "secret") {
+		t.Fatalf("store error: status=%d body=%q", rec.Code, rec.Body)
+	}
+}
+
 func getCustomers(t *testing.T, s *fakeStore, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()

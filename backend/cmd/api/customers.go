@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -23,6 +24,7 @@ const (
 type customerStore interface {
 	Summary(ctx context.Context, now time.Time) (customers.Summary, error)
 	List(ctx context.Context, f customers.Filter, now time.Time, limit, offset int) ([]customers.Customer, int, error)
+	Get(ctx context.Context, id int64) (customers.CustomerDetail, error)
 	Audiences(ctx context.Context, now time.Time, category string) (customers.AudienceReport, error)
 }
 
@@ -87,6 +89,10 @@ func (h customerHandler) list(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if f.Sort, err = customers.ParseSort(q.Get("sort"), q.Get("order")); err != nil {
+		writeError(w, http.StatusBadRequest, "sort: "+err.Error())
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), queryTimeout)
 	defer cancel()
@@ -97,6 +103,27 @@ func (h customerHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, customerList{Items: items, Total: total, Page: page, PageSize: pageSize})
+}
+
+func (h customerHandler) get(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id < 1 {
+		writeError(w, http.StatusBadRequest, "id: must be a positive integer")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), queryTimeout)
+	defer cancel()
+
+	d, err := h.store.Get(ctx, id)
+	if errors.Is(err, customers.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "customer not found")
+		return
+	}
+	if err != nil {
+		h.internalError(w, "customer detail", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
 }
 
 func (h customerHandler) audiences(w http.ResponseWriter, r *http.Request) {

@@ -134,6 +134,7 @@ func newHandler(log *slog.Logger, db pinger, cs customerStore, seg suggester) ht
 	ch := customerHandler{log: log, store: cs}
 	mux.HandleFunc("GET /api/customers/summary", ch.summary)
 	mux.HandleFunc("GET /api/customers", ch.list)
+	mux.HandleFunc("GET /api/customers/{id}", ch.get) // "summary" above is more specific and wins
 	mux.HandleFunc("GET /api/audiences", ch.audiences)
 	if seg != nil {
 		sh := segmentationHandler{log: log, svc: seg}

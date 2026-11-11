@@ -60,6 +60,35 @@ export interface CustomerQuery {
   /** Audience id; '' means everyone. */
   segment: string
   category: string
+  /** Server-side sort; '' means default order. */
+  sort?: SortField | ''
+  order?: SortOrder
+}
+
+export type SortOrder = 'asc' | 'desc'
+
+/** Sort keys accepted by GET /api/customers (whitelisted on the backend). */
+export type SortField = 'name' | 'city' | 'language' | 'orders' | 'total_spent' | 'last_order_at' | 'last_active_at' | 'created_at'
+
+export interface Order {
+  id: number
+  category: string
+  amount: number
+  placed_at: string
+}
+
+export interface CartAddition {
+  id: number
+  category: string
+  added_at: string
+}
+
+export interface CustomerDetail extends Customer {
+  last_cart_at: string | null
+  carts: number
+  /** Newest first, capped by the backend (20). */
+  recent_orders: Order[]
+  recent_carts: CartAddition[]
 }
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
@@ -90,7 +119,15 @@ export function fetchCustomers(q: CustomerQuery, signal?: AbortSignal) {
     params.set('segment', q.segment)
     if (q.category) params.set('category', q.category)
   }
+  if (q.sort) {
+    params.set('sort', q.sort)
+    params.set('order', q.order ?? 'asc')
+  }
   return get<CustomerPage>(`/api/customers?${params}`, signal)
+}
+
+export function fetchCustomer(id: number, signal?: AbortSignal) {
+  return get<CustomerDetail>(`/api/customers/${id}`, signal)
 }
 
 export function fetchAudiences(category: string, signal?: AbortSignal) {
