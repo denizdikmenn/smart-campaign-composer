@@ -81,7 +81,7 @@ func (h segmentationHandler) preview(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	list, err := h.svc.Preview(ctx, a, 5)
+	list, err := h.svc.Preview(ctx, a, 12)
 	switch {
 	case err == nil:
 		writeJSON(w, http.StatusOK, map[string]any{"customers": list})

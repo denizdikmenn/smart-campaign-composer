@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/smart-campaign-composer/backend/internal/content"
 	"github.com/smart-campaign-composer/backend/internal/customers"
 	"github.com/smart-campaign-composer/backend/internal/db"
 	"github.com/smart-campaign-composer/backend/internal/seed"
@@ -69,17 +70,19 @@ func run(log *slog.Logger) error {
 	}
 
 	var gen segmentation.Generator = segmentation.Mock{}
+	var writer content.Generator = content.Mock{}
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
-		claude := segmentation.NewClaude(key, os.Getenv("ANTHROPIC_MODEL"))
-		gen = claude
-		log.Info("audience generator: Claude")
+		gen = segmentation.NewClaude(key, os.Getenv("ANTHROPIC_MODEL"))
+		writer = content.NewClaude(key, os.Getenv("ANTHROPIC_MODEL"))
+		log.Info("audience and content generators: Claude")
 	} else {
-		log.Warn("ANTHROPIC_API_KEY not set; audience generator is the deterministic mock")
+		log.Warn("ANTHROPIC_API_KEY not set; audience and content generators are deterministic mocks")
 	}
+	seg := segmentation.NewService(pool, gen, log)
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           newHandler(log, pool, customers.NewStore(pool), segmentation.NewService(pool, gen, log)),
+		Handler:           newHandler(log, pool, customers.NewStore(pool), seg, content.NewService(pool, writer, seg, log).WithLifetime(ctx)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -129,7 +132,7 @@ func setupDatabase(ctx context.Context, log *slog.Logger, pool *pgxpool.Pool) er
 	return nil
 }
 
-func newHandler(log *slog.Logger, db pinger, cs customerStore, seg suggester) http.Handler {
+func newHandler(log *slog.Logger, db pinger, cs customerStore, seg suggester, camp campaignService) http.Handler {
 	mux := http.NewServeMux()
 	ch := customerHandler{log: log, store: cs}
 	mux.HandleFunc("GET /api/customers/summary", ch.summary)
@@ -140,6 +143,9 @@ func newHandler(log *slog.Logger, db pinger, cs customerStore, seg suggester) ht
 		sh := segmentationHandler{log: log, svc: seg}
 		mux.HandleFunc("POST /api/segmentation/suggest", sh.suggest)
 		mux.HandleFunc("POST /api/segmentation/preview", sh.preview)
+	}
+	if camp != nil {
+		campaignHandler{log: log, svc: camp}.routes(mux)
 	}
 	// Admin routes (briefs and raw model output); kept under a separate prefix.
 	if rr, ok := seg.(runReader); ok {

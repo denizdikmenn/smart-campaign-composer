@@ -1,0 +1,1128 @@
+{
+  "duration_s": 137.712271166,
+  "input_tokens": 67562,
+  "model": "claude-haiku-5-5",
+  "output_tokens": 24012,
+  "results": [
+    {
+      "id": "G01",
+      "area": "Generation \u0026 regeneration",
+      "name": "Discount reduced between turns",
+      "intent": "Finance cuts the offer from 20% to 15% after the first draft.",
+      "expected": "Only 15% anywhere; 20% gone from every channel; 'until Sunday' kept.",
+      "status": "PASS",
+      "actual": "SMS: Hi {{first_name}}, winter coats and jackets are 15% off until Sunday. Shop now and get ready for the cold season. / Subject: 15% off all coats and jackets until Sunday / Body: Hi {{first_name}}, Winter is here, and all our coats and jackets are now 15% off. The offer runs until Sunday, so it's a great time to find a warm layer for the colder months ahead. Whether you need a heavy winter coat f…",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, winter coats and jackets are 20% off until Sunday. Shop now and get ready for the cold season.",
+            "email_subject": "20% off all coats and jackets until Sunday",
+            "email_body": "Hi {{first_name}},\n\nWinter is here, and all our coats and jackets are now 20% off. The offer runs until Sunday, so it's a great time to find a warm layer for the colder months ahead.\n\nWhether you need a heavy winter coat for everyday wear or a lighter jacket for changeable days, you'll find styles to suit you across the full range. Pick your favorite before the offer ends.\n\nShop now and stay warm.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, winter coats and jackets are 15% off until Sunday. Shop now and get ready for the cold season.",
+            "email_subject": "15% off all coats and jackets until Sunday",
+            "email_body": "Hi {{first_name}},\n\nWinter is here, and all our coats and jackets are now 15% off. The offer runs until Sunday, so it's a great time to find a warm layer for the colder months ahead.\n\nWhether you need a heavy winter coat for everyday wear or a lighter jacket for changeable days, you'll find styles to suit you across the full range. Pick your favorite before the offer ends.\n\nShop now and stay warm.\n\nThe team"
+          },
+          "feedback": "Finance came back, we can only do 15% not 20%. Everything else stays the same.",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3949,
+        1849
+      ]
+    },
+    {
+      "id": "G02",
+      "area": "Generation \u0026 regeneration",
+      "name": "Promotion withdrawn",
+      "intent": "Legal removes the discount; the campaign becomes a plain launch announcement.",
+      "expected": "No discount, percentage or code remains in any channel.",
+      "status": "PASS",
+      "actual": "SMS: Hi {{first_name}}, our Spring home collection is here. Shop now! / Subject: Our Spring home collection is here / Body: Hi {{first_name}}, Our Spring home collection has arrived, and we wanted you to be among the first to see it. From fresh accents to everyday essentials, there is something new to refresh your space for the season. Shop n…",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, our Spring home collection is here. Get 10% off with code HOME10 during the first week. Shop now!",
+            "email_subject": "Our Spring home collection is here: 10% off",
+            "email_body": "Hi {{first_name}},\n\nOur Spring home collection has arrived, and we wanted you to be among the first to see it.\n\nFor the first week, enjoy 10% off your order with code HOME10 at checkout. It's a great moment to refresh your space for the season, from fresh accents to everyday essentials.\n\nShop now and find something new for your home.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, our Spring home collection is here. Shop now!",
+            "email_subject": "Our Spring home collection is here",
+            "email_body": "Hi {{first_name}},\n\nOur Spring home collection has arrived, and we wanted you to be among the first to see it.\n\nFrom fresh accents to everyday essentials, there is something new to refresh your space for the season.\n\nShop now and find your next favorite piece for your home.\n\nThe team"
+          },
+          "feedback": "Legal says no discount this time. Drop the code and the discount completely, just announce the new collection.",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3898,
+        1402
+      ]
+    },
+    {
+      "id": "G03",
+      "area": "Generation \u0026 regeneration",
+      "name": "New code introduced in feedback",
+      "intent": "A coupon and an end date are added after the first draft.",
+      "expected": "WINTER25, 25% and 30 November appear exactly; code present in SMS and email body.",
+      "status": "REVIEW",
+      "review": "Note whether Validate flags the feedback-supplied code as an unverified fact (a false alarm for the marketer).",
+      "actual": "SMS: Hi {{first_name}}, you left items in your cart. Finish checking out and save 25% with code WINTER25, valid until 30 November. / Subject: Your cart is waiting: take 25% off with WINTER25 / Body: Hi {{first_name}}, You left a few items in your cart, and they are still waiting for you. Use code WINTER25 to get 25% off when you complete your purchase by 30 November. Complete your order whenever you are ready. The t…",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "cart_recovery",
+              "length": "short",
+              "cta": "complete_purchase"
+            },
+            "sms_body": "Hi {{first_name}}, you left items in your cart. Come back and finish checking out whenever you're ready. We saved them for you.",
+            "email_subject": "Your cart is waiting for you",
+            "email_body": "Hi {{first_name}},\n\nYou left a few items in your cart, and we saved them for you. If you were in the middle of checking out, you can pick up right where you left off.\n\nComplete your order whenever you are ready and get your items on their way.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "cart_recovery",
+              "length": "short",
+              "cta": "complete_purchase"
+            },
+            "sms_body": "Hi {{first_name}}, you left items in your cart. Finish checking out and save 25% with code WINTER25, valid until 30 November.",
+            "email_subject": "Your cart is waiting: take 25% off with WINTER25",
+            "email_body": "Hi {{first_name}},\n\nYou left a few items in your cart, and they are still waiting for you. Use code WINTER25 to get 25% off when you complete your purchase by 30 November.\n\nComplete your order whenever you are ready.\n\nThe team"
+          },
+          "feedback": "Add this: code WINTER25 gives 25% off, valid until 30 November.",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3887,
+        1133
+      ]
+    },
+    {
+      "id": "G04",
+      "area": "Generation \u0026 regeneration",
+      "name": "Manual subject edit survives an SMS-only request",
+      "intent": "Marketer rewrote the subject by hand, then asks only for a shorter SMS.",
+      "expected": "Subject byte-identical to the manual edit; email body unchanged; SMS shorter.",
+      "status": "PASS",
+      "actual": "SMS: Hi {{first_name}}, thank you for being a loyal customer! Enjoy free shipping on your next order this month. Shop now. / Subject: A little thank-you from all of us at Pera Home / Body: Hi {{first_name}}, Thank you for being one of our most loyal customers. We truly appreciate your trust and the orders you have placed with us. As a thank-you, your next order this month ships free. Shipping is on us, so …",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "loyalty",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, thank you for being one of our most loyal customers! Enjoy free shipping on your next order this month. Shop now.",
+            "email_subject": "Thank you for being one of our most loyal customers",
+            "email_body": "Hi {{first_name}},\n\nThank you for being one of our most loyal customers. We truly appreciate your trust and the orders you have placed with us.\n\nAs a thank-you, your next order this month ships free. Shipping is on us, so you can simply choose what you love and check out.\n\nShop now and enjoy free shipping on your next order this month.\n\nThanks for being part of our community.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "loyalty",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, thank you for being a loyal customer! Enjoy free shipping on your next order this month. Shop now.",
+            "email_subject": "A little thank-you from all of us at Pera Home",
+            "email_body": "Hi {{first_name}},\n\nThank you for being one of our most loyal customers. We truly appreciate your trust and the orders you have placed with us.\n\nAs a thank-you, your next order this month ships free. Shipping is on us, so you can simply choose what you love and check out.\n\nShop now and enjoy free shipping on your next order this month.\n\nThanks for being part of our community.\n\nThe team"
+          },
+          "feedback": "The SMS is too long, make it shorter. Don't touch anything else.",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3914,
+        1960
+      ]
+    },
+    {
+      "id": "G05",
+      "area": "Generation \u0026 regeneration",
+      "name": "Channel-specific instruction",
+      "intent": "Add free shipping info to the email only and keep the SMS as is.",
+      "expected": "Email body mentions 500 TL free shipping; SMS unchanged and free of the shipping info.",
+      "status": "PASS",
+      "actual": "SMS: Hi {{first_name}}, our weekend sports sale is on: 30% off running shoes Saturday and Sunday only. Shop now! / Subject: Weekend sports sale: 30% off running shoes / Body: Hi {{first_name}}, Our weekend sports sale is here: get 30% off running shoes, available Saturday and Sunday only. Whether you're training for your next race or just getting out for a run, now is a great time to find a p…",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, our weekend sports sale is on: 30% off running shoes Saturday and Sunday only. Shop now!",
+            "email_subject": "Weekend sports sale: 30% off running shoes",
+            "email_body": "Hi {{first_name}},\n\nOur weekend sports sale is here: get 30% off running shoes, available Saturday and Sunday only.\n\nWhether you're training for your next race or just getting out for a run, now is a great time to find a pair that fits your stride.\n\nBrowse our range and pick the pair that feels right for you. The sale runs on Saturday and Sunday only, so plan your visit.\n\nShop running shoes this weekend and enjoy 30% off.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, our weekend sports sale is on: 30% off running shoes Saturday and Sunday only. Shop now!",
+            "email_subject": "Weekend sports sale: 30% off running shoes",
+            "email_body": "Hi {{first_name}},\n\nOur weekend sports sale is here: get 30% off running shoes, available Saturday and Sunday only.\n\nWhether you're training for your next race or just getting out for a run, now is a great time to find a pair that fits your stride. Orders over 500 TL also ship free.\n\nBrowse our range and pick the pair that feels right for you. The sale runs on Saturday and Sunday only, so plan your visit.\n\nShop running shoes this weekend and enjoy 30% off.\n\nThe team"
+          },
+          "feedback": "In the email only, mention free shipping on orders over 500 TL. Keep the SMS exactly as it is.",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3957,
+        1702
+      ]
+    },
+    {
+      "id": "G06",
+      "area": "Generation \u0026 regeneration",
+      "name": "Contradictory feedback",
+      "intent": "'More urgent' but 'no pressure tactics' for a brand that avoids countdowns.",
+      "expected": "No invented deadline or scarcity phrases; 50% and 'while stock lasts' kept. Tone needs a human look.",
+      "status": "REVIEW",
+      "review": "Is the tone more urgent without pressure? Subjective.",
+      "actual": "SMS: Hi {{first_name}}, our summer clearance on fashion is on now: up to 50% off while stock lasts. Shop now before your favourites go! / Subject: Summer clearance: up to 50% off fashion, while stock lasts / Body: Hi {{first_name}}, Our summer clearance on fashion is on now, with up to 50% off while stock lasts. Pieces are moving fast, so this is a great time to find your next favourites. Shop now and see what's left. The team",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "short",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, our summer clearance on fashion is here: up to 50% off while stock lasts. Shop now and find your next favourites.",
+            "email_subject": "Summer clearance: up to 50% off fashion",
+            "email_body": "Hi {{first_name}},\n\nOur summer clearance on fashion is here, with up to 50% off while stock lasts.\n\nShop now and find pieces you'll love.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "short",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, our summer clearance on fashion is on now: up to 50% off while stock lasts. Shop now before your favourites go!",
+            "email_subject": "Summer clearance: up to 50% off fashion, while stock lasts",
+            "email_body": "Hi {{first_name}},\n\nOur summer clearance on fashion is on now, with up to 50% off while stock lasts. Pieces are moving fast, so this is a great time to find your next favourites.\n\nShop now and see what's left.\n\nThe team"
+          },
+          "feedback": "Make it feel more urgent, but no pressure tactics. Our brand doesn't do countdowns or 'last chance' stuff.",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3858,
+        1561
+      ]
+    },
+    {
+      "id": "G07",
+      "area": "Generation \u0026 regeneration",
+      "name": "Marketer states an impossible fact",
+      "intent": "Feedback says the sale ended yesterday, contradicting the brief's end date.",
+      "expected": "Does not tell customers the sale has ended while promoting it; keeps 15 November or omits the date. Ideally the conflict is surfaced.",
+      "status": "REVIEW",
+      "review": "Regeneration has no way to report the contradiction back to the marketer; check if the output silently picked a side.",
+      "actual": "SMS: Hi {{first_name}}, our electronics flash sale is on: 20% off headphones until 15 November. Shop now! / Subject: 20% off headphones in our electronics flash sale / Body: Hi {{first_name}}, Our electronics flash sale is on: take 20% off headphones until 15 November. Shop now and find the sound that suits you. The team",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "short",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, our electronics flash sale is on: 20% off headphones until 15 November. Shop now!",
+            "email_subject": "20% off headphones in our electronics flash sale",
+            "email_body": "Hi {{first_name}},\n\nOur electronics flash sale is on: take 20% off headphones until 15 November. Shop now and find the sound that suits you.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "short",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, our electronics flash sale is on: 20% off headphones until 15 November. Shop now!",
+            "email_subject": "20% off headphones in our electronics flash sale",
+            "email_body": "Hi {{first_name}},\n\nOur electronics flash sale is on: take 20% off headphones until 15 November. Shop now and find the sound that suits you.\n\nThe team"
+          },
+          "feedback": "Remind them the sale ended yesterday so they should hurry.",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3821,
+        1557
+      ]
+    },
+    {
+      "id": "G08",
+      "area": "Generation \u0026 regeneration",
+      "name": "Offer eligibility contradicts audience",
+      "intent": "A first-order welcome code is sent to customers with 4+ orders.",
+      "expected": "The mismatch is recognized: copy must not promise a 'first order' discount to repeat buyers.",
+      "status": "PASS",
+      "actual": "SMS: Hi {{first_name}}, thank you for being a loyal customer! See what's new in our store and find your next favorite pick today. / Subject: Thank you for being a loyal customer / Body: Hi {{first_name}}, Thank you for being one of our most loyal customers. We really appreciate every order you've placed with us. See what's new and find your next favorite piece today. The team / Notes to marketer: turn 1: The HELLO100 offer is for first orders from new customers only, so I left it out for repeat buyers and did not mention any discount. Settings were inferred as loyalty occasion, since the audie…",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "loyalty",
+              "length": "short",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, thank you for being a loyal customer! See what's new in our store and find your next favorite pick today.",
+            "email_subject": "Thank you for being a loyal customer",
+            "email_body": "Hi {{first_name}},\n\nThank you for being one of our most loyal customers. We really appreciate every order you've placed with us.\n\nSee what's new and find your next favorite piece today.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "The HELLO100 offer is for first orders from new customers only, so I left it out for repeat buyers and did not mention any discount. Settings were inferred as loyalty occasion, since the audience is repeat buyers, and the brief's welcome offer does not fit them.",
+          "turn": 1
+        }
+      ],
+      "tokens": [
+        1792,
+        747
+      ],
+      "extra": {
+        "notes": "turn 1: The HELLO100 offer is for first orders from new customers only, so I left it out for repeat buyers and did not mention any discount. Settings were inferred as loyalty occasion, since the audience is repeat buyers, and the brief's welcome offer does not fit them."
+      }
+    },
+    {
+      "id": "G09",
+      "area": "Generation \u0026 regeneration",
+      "name": "Old campaign leaks into new direction",
+      "intent": "Black Friday campaign is repurposed into a plain restock notice with no discount.",
+      "expected": "No Black Friday, 40%, dates or discount wording left.",
+      "status": "PASS",
+      "actual": "SMS: Hi {{first_name}}, our electronics are back in stock. Shop now to see what's available. / Subject: Our electronics range is back in stock / Body: Hi {{first_name}}, Good news: our electronics range has been restocked. Whether you're upgrading an everyday device or picking up something new, there's a good selection waiting for you. We're glad to have these back on …",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, Black Friday is here: 40% off electronics, 27-29 November. Shop now and save!",
+            "email_subject": "Black Friday: 40% off electronics, 27-29 November",
+            "email_body": "Hi {{first_name}},\n\nBlack Friday is here, and we're offering 40% off electronics from 27 to 29 November.\n\nWhether you're upgrading an everyday device or picking up something new, this is a great time to shop our electronics range and save 40%.\n\nShop now to take advantage of the offer while it runs.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, Black Friday: 40% off electronics, 27-29 November. Shop now and save big!",
+            "email_subject": "Black Friday: 40% off electronics, 27-29 November",
+            "email_body": "Hi {{first_name}},\n\nBlack Friday is here, and we're offering 40% off electronics from 27 to 29 November.\n\nWhether you're upgrading an everyday device or picking up something new, this is a great time to shop our electronics range and save 40%.\n\nShop now to take advantage of the offer while it runs.\n\nThe team"
+          },
+          "feedback": "Make the SMS punchier.",
+          "notes": "",
+          "turn": 2
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, our electronics are back in stock. Shop now to see what's available.",
+            "email_subject": "Our electronics range is back in stock",
+            "email_body": "Hi {{first_name}},\n\nGood news: our electronics range has been restocked. Whether you're upgrading an everyday device or picking up something new, there's a good selection waiting for you.\n\nWe're glad to have these back on the shelves. Browse the range at your own pace and find the right device for you.\n\nShop now to see what's available.\n\nThe team"
+          },
+          "feedback": "Change of plan: this is no longer Black Friday. It's a simple restock announcement for electronics, no discount at all.",
+          "notes": "",
+          "turn": 3
+        }
+      ],
+      "tokens": [
+        5983,
+        2316
+      ]
+    },
+    {
+      "id": "G10",
+      "area": "Generation \u0026 regeneration",
+      "name": "Vague feedback must not change facts",
+      "intent": "'meh. make it pop!!' on a buy-2-get-1 offer.",
+      "expected": "Offer and date unchanged; no new discount, amount or code invented.",
+      "status": "PASS",
+      "actual": "SMS: Hi {{first_name}}, great news! Buy 2 paperbacks, get 1 free until 20 December. Shop now and stock up on your next read! / Subject: Buy 2, get 1 free on all paperbacks until 20 December / Body: Hi {{first_name}}, Great news for book lovers! Buy 2 paperbacks and get 1 free on all paperbacks until 20 December. This is the perfect moment to stock up on your next favourite read. Add three paperbacks to your basket …",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, buy 2 get 1 free on all paperbacks until 20 December. Shop now and stock up on your next read!",
+            "email_subject": "Buy 2, get 1 free on all paperbacks until 20 December",
+            "email_body": "Hi {{first_name}},\n\nGood news for book lovers: buy 2 paperbacks and get 1 free on all paperbacks until 20 December.\n\nIt's a great time to stock up on your next read. Add three paperbacks to your basket and the third one is free.\n\nShop now and make the most of the offer, which runs until 20 December.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, great news! Buy 2 paperbacks, get 1 free until 20 December. Shop now and stock up on your next read!",
+            "email_subject": "Buy 2, get 1 free on all paperbacks until 20 December",
+            "email_body": "Hi {{first_name}},\n\nGreat news for book lovers! Buy 2 paperbacks and get 1 free on all paperbacks until 20 December.\n\nThis is the perfect moment to stock up on your next favourite read. Add three paperbacks to your basket and the third one is on us.\n\nWhether you like gripping thrillers, cosy stories or big nonfiction ideas, there is plenty to pick from. The offer runs until 20 December, so now is a great time to browse and fill your shelf.\n\nShop now and make the most of it.\n\nThe team"
+          },
+          "feedback": "meh. make it pop!!",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3882,
+        1445
+      ]
+    },
+    {
+      "id": "G11",
+      "area": "Generation \u0026 regeneration",
+      "name": "Internal note left in a manual edit",
+      "intent": "Marketer's edited body contains a private note with an embedded instruction.",
+      "expected": "The note is neither shown to customers nor obeyed (no gift wrap offer).",
+      "status": "PASS",
+      "actual": "SMS: Hi {{first_name}}, enjoy 15% off LEGO sets this week. Shop our LEGO range now and find your next build! / Subject: 15% off LEGO sets this week / Body: Hi {{first_name}}, This week LEGO sets are 15% off, so it's a great time to find your next build, for yourself or someone special. Shop our LEGO range now and enjoy the savings. The team",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "short",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, enjoy 15% off LEGO sets this week. Shop our LEGO range now and find your next build!",
+            "email_subject": "15% off LEGO sets this week",
+            "email_body": "Hi {{first_name}},\n\nThis week we're offering 15% off LEGO sets. If you've been eyeing a new build for yourself or someone special, now is a great time to pick one up.\n\nSimply shop our LEGO range and the discount applies to sets this week.\n\nShop now and find your next build.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "short",
+              "cta": "shop_now"
+            },
+            "sms_body": "Hi {{first_name}}, enjoy 15% off LEGO sets this week. Shop our LEGO range now and find your next build!",
+            "email_subject": "15% off LEGO sets this week",
+            "email_body": "Hi {{first_name}},\n\nThis week LEGO sets are 15% off, so it's a great time to find your next build, for yourself or someone special.\n\nShop our LEGO range now and enjoy the savings.\n\nThe team"
+          },
+          "feedback": "Polish the email a bit.",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3881,
+        1114
+      ]
+    },
+    {
+      "id": "G12",
+      "area": "Generation \u0026 regeneration",
+      "name": "Request for unsupported rich content",
+      "intent": "Marketer asks for a hero image, live countdown timer and product recommendation block.",
+      "expected": "Plain text only; no fake image/timer/product placeholders; no {{...}} other than first_name.",
+      "status": "REVIEW",
+      "review": "The system has no channel to tell the marketer this is unsupported; check whether the output pretends otherwise.",
+      "actual": "SMS: Hi {{first_name}}, new beauty arrivals just landed this week. Come explore what's new for you.](#) / Subject: New beauty arrivals are in this week / Body: Hi {{first_name}}, New beauty arrivals just landed this week, and we think you'll find something you love. Take a look and explore what's new. The team",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "announcement",
+              "length": "short",
+              "cta": "explore"
+            },
+            "sms_body": "Hi {{first_name}}, new beauty arrivals just landed this week. Come take a look and see what's new for you.",
+            "email_subject": "New beauty arrivals are in this week",
+            "email_body": "Hi {{first_name}},\n\nNew beauty arrivals just landed this week. Take a look and explore what's new.\n\nThe team"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "announcement",
+              "length": "short",
+              "cta": "explore"
+            },
+            "sms_body": "Hi {{first_name}}, new beauty arrivals just landed this week. Come explore what's new for you.](#)",
+            "email_subject": "New beauty arrivals are in this week",
+            "email_body": "Hi {{first_name}},\n\nNew beauty arrivals just landed this week, and we think you'll find something you love. Take a look and explore what's new.\n\nThe team"
+          },
+          "feedback": "Put the hero product image at the top of the email, add a live countdown timer to midnight and a personalized product recommendation block.",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3793,
+        802
+      ]
+    },
+    {
+      "id": "G13",
+      "area": "Generation \u0026 regeneration",
+      "name": "Turkish draft from mixed-language feedback",
+      "intent": "Turkish audience, Turkish brief, English feedback adding a minimum basket.",
+      "expected": "Copy stays Turkish; %20, 750 TL and 14 days kept; no foreign currency.",
+      "status": "REVIEW",
+      "review": "Natural Turkish? Subjective.",
+      "actual": "SMS: {{first_name}}, 750 TL ve üzeri alışverişte ev tekstilinde %20 indirim! 14 gün içinde ücretsiz iade. Hemen göz atın. / Subject: 750 TL üzeri ev tekstilinde %20 indirim ve ücretsiz iade / Body: Merhaba {{first_name}}, Ev tekstilinde %20 indirim sizi bekliyor. Evinizin havasını yenilemek için ihtiyacınız olan parçaları şimdi uygun fiyatla bulabilirsiniz. Bu indirim 750 TL ve üzeri alışverişlerde geçerlidir. Beğe…",
+      "outputs": [
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "{{first_name}}, ev tekstilinde %20 indirim! 14 gün içinde ücretsiz iade. Hemen göz atın.",
+            "email_subject": "Ev tekstilinde %20 indirim ve 14 gün ücretsiz iade",
+            "email_body": "Merhaba {{first_name}},\n\nEv tekstilinde %20 indirim sizi bekliyor. Evinizin havasını yenilemek için ihtiyacınız olan parçaları şimdi uygun fiyatla bulabilirsiniz.\n\nBeğenmediğiniz bir ürün olursa endişelenmeyin. 14 gün içinde ücretsiz iade imkânından yararlanabilirsiniz.\n\nKeyifli alışverişler dileriz.\n\nEkip"
+          },
+          "feedback": "",
+          "notes": "",
+          "turn": 1
+        },
+        {
+          "content": {
+            "sms_enabled": true,
+            "email_enabled": true,
+            "settings": {
+              "tone": "friendly",
+              "occasion": "promotion",
+              "length": "balanced",
+              "cta": "shop_now"
+            },
+            "sms_body": "{{first_name}}, 750 TL ve üzeri alışverişte ev tekstilinde %20 indirim! 14 gün içinde ücretsiz iade. Hemen göz atın.",
+            "email_subject": "750 TL üzeri ev tekstilinde %20 indirim ve ücretsiz iade",
+            "email_body": "Merhaba {{first_name}},\n\nEv tekstilinde %20 indirim sizi bekliyor. Evinizin havasını yenilemek için ihtiyacınız olan parçaları şimdi uygun fiyatla bulabilirsiniz. Bu indirim 750 TL ve üzeri alışverişlerde geçerlidir.\n\nBeğenmediğiniz bir ürün olursa endişelenmeyin. 14 gün içinde ücretsiz iade imkânından yararlanabilirsiniz.\n\nHemen göz atın ve evinize yeni bir dokunuş katın.\n\nKeyifli alışverişler dileriz.\n\nEkip"
+          },
+          "feedback": "Please add: minimum basket 750 TL. Keep it in Turkish.",
+          "notes": "",
+          "turn": 2
+        }
+      ],
+      "tokens": [
+        3992,
+        2601
+      ]
+    },
+    {
+      "id": "L01",
+      "area": "Localization",
+      "name": "Brand, code and TRY amount survive translation",
+      "intent": "Mixed TR/EN brief; English source translated to Turkish.",
+      "expected": "Kuzey Outdoor, KZY-40, 25% and ₺1.250 unchanged; brand not translated.",
+      "status": "PASS",
+      "actual": "tr: SMS: Kuzey Outdoor: ₺1.250 ve üzeri siparişlerde KZY-40 koduyla trail ceketlerde %25 indirim. Hemen alışveriş yap! {{first_name}} / Subject: Kuzey Outdoor'da trail ceketlerde %25 indirim / Body: Merhaba {{first_name}}, Kış patikaları seni çağırıyor. ₺1.250 ve üzeri siparişlerde KZY-40 koduyla tüm trail ceketlerde %25 indirim seni bekliyor. Koleksiyonu Kuzey Outdoor'da keşfet.",
+      "outputs": [
+        {
+          "language": "tr",
+          "version": {
+            "sms_body": "Kuzey Outdoor: ₺1.250 ve üzeri siparişlerde KZY-40 koduyla trail ceketlerde %25 indirim. Hemen alışveriş yap! {{first_name}}",
+            "email_subject": "Kuzey Outdoor'da trail ceketlerde %25 indirim",
+            "email_body": "Merhaba {{first_name}},\n\nKış patikaları seni çağırıyor. ₺1.250 ve üzeri siparişlerde KZY-40 koduyla tüm trail ceketlerde %25 indirim seni bekliyor.\n\nKoleksiyonu Kuzey Outdoor'da keşfet."
+          }
+        }
+      ],
+      "tokens": [
+        947,
+        253
+      ]
+    },
+    {
+      "id": "L02",
+      "area": "Localization",
+      "name": "Restriction preserved",
+      "intent": "In-store only restriction must survive in Turkish.",
+      "expected": "Ankara stores, not online, 10%, 5 January all present; restriction not softened.",
+      "status": "REVIEW",
+      "review": "Confirm the negation (not valid online) is kept in Turkish, not just the word 'online'.",
+      "actual": "tr: SMS: 5 Ocak'a kadar ev tekstilinde %10 indirim. Yalnızca Ankara mağazalarımızda geçerli, online değil. {{first_name}} / Subject: Ankara mağazalarımızda ev tekstilinde %10 indirim / Body: Merhaba {{first_name}}, Yeni yıl için evinizi yenileyin: 5 Ocak'a kadar tüm ev tekstili ürünlerinde %10 indirim. Bu teklif yalnızca Ankara mağazalarımızda geçerlidir ve online olarak kullanılamaz.",
+      "outputs": [
+        {
+          "language": "tr",
+          "version": {
+            "sms_body": "5 Ocak'a kadar ev tekstilinde %10 indirim. Yalnızca Ankara mağazalarımızda geçerli, online değil. {{first_name}}",
+            "email_subject": "Ankara mağazalarımızda ev tekstilinde %10 indirim",
+            "email_body": "Merhaba {{first_name}},\n\nYeni yıl için evinizi yenileyin: 5 Ocak'a kadar tüm ev tekstili ürünlerinde %10 indirim.\n\nBu teklif yalnızca Ankara mağazalarımızda geçerlidir ve online olarak kullanılamaz."
+          }
+        }
+      ],
+      "tokens": [
+        892,
+        239
+      ]
+    },
+    {
+      "id": "L03",
+      "area": "Localization",
+      "name": "Turkish source with English fine print to English",
+      "intent": "Source mixes Turkish copy with an English 'not combinable' line.",
+      "expected": "APP15, 15%, 1 December, app-only and not-combinable restriction all kept.",
+      "status": "PASS",
+      "actual": "en: SMS: App-exclusive 15% off! Code: APP15, valid until December 1. Not combinable with other offers. / Subject: 15% off, exclusively in our app / Body: Hi {{first_name}}, Use code APP15 to get 15% off orders placed in the app. The offer is valid until December 1. Terms apply: not combinable with other offers.",
+      "outputs": [
+        {
+          "language": "en",
+          "version": {
+            "sms_body": "App-exclusive 15% off! Code: APP15, valid until December 1. Not combinable with other offers.",
+            "email_subject": "15% off, exclusively in our app",
+            "email_body": "Hi {{first_name}},\n\nUse code APP15 to get 15% off orders placed in the app. The offer is valid until December 1.\n\nTerms apply: not combinable with other offers."
+          }
+        }
+      ],
+      "tokens": [
+        960,
+        463
+      ]
+    },
+    {
+      "id": "L04",
+      "area": "Localization",
+      "name": "Two languages at once, amounts and dates localized safely",
+      "intent": "Turkish base localized to English for a mixed audience; date and money format conversions.",
+      "expected": "₺499 stays TRY (not $), 48 hours kept, FLASH48 kept; nothing added.",
+      "status": "PASS",
+      "actual": "en: SMS: 48-hour flash sale! Sneakers from ₺499. Code: FLASH48 / Subject: 48 hours: sneakers from ₺499 / Body: Hi {{first_name}}, For 48 hours only, all sneakers start at ₺499. Don't forget to use code FLASH48.",
+      "outputs": [
+        {
+          "language": "en",
+          "version": {
+            "sms_body": "48-hour flash sale! Sneakers from ₺499. Code: FLASH48",
+            "email_subject": "48 hours: sneakers from ₺499",
+            "email_body": "Hi {{first_name}},\n\nFor 48 hours only, all sneakers start at ₺499.\n\nDon't forget to use code FLASH48."
+          }
+        }
+      ],
+      "tokens": [
+        947,
+        133
+      ]
+    },
+    {
+      "id": "B01",
+      "area": "Behavioral groups",
+      "name": "Near-identical audience",
+      "intent": "40 customers who each bought once, similar spend and recency.",
+      "expected": "not_meaningful (or at most 2 groups); no artificial splits on tiny spend differences.",
+      "status": "PASS",
+      "actual": "outcome=not_meaningful; The audience is highly homogeneous: all 40 customers have exactly one order, with nearly identical spend and recency, and none have recent c…; groups: ",
+      "tokens": [
+        2329,
+        319
+      ],
+      "extra": {
+        "profile": "Reachable customers: 40\nLifetime orders: none 0%, 1 order 100%, 2-3 orders 0%, 4+ orders 0%\nLifetime spend in TRY (buyers only): p25 1777, median 1807, p75 1837, max 1867\nDays since last order (buyers only): p25 21, median 23, p75 25, max 27\nDays since last activity: p25 16, median 17, p75 18, max 19\nAdded to cart in the last 30 days: 0%\nJoined in the last 30 days: 0%\nLanguages: tr 100%\nTop cities: Istanbul 100%"
+      }
+    },
+    {
+      "id": "B02",
+      "area": "Behavioral groups",
+      "name": "Small audience just above the guard",
+      "intent": "22 reachable customers, mildly varied.",
+      "expected": "not_meaningful: 3-4 groups of ~5 customers each are artificial.",
+      "status": "PASS",
+      "actual": "outcome=not_meaningful; The audience has only 22 reachable customers, below the roughly 40 needed for a meaningful split, so one shared invitation is the better app…; groups: ",
+      "tokens": [
+        2320,
+        128
+      ],
+      "extra": {
+        "profile": "Reachable customers: 22\nLifetime orders: none 23%, 1 order 23%, 2-3 orders 36%, 4+ orders 18%\nLifetime spend in TRY (buyers only): p25 400, median 800, p75 1200, max 1600\nDays since last order (buyers only): p25 64, median 109, p75 154, max 199\nDays since last activity: p25 8, median 13, p75 18, max 24\nAdded to cart in the last 30 days: 36%\nJoined in the last 30 days: 0%\nLanguages: tr 100%\nTop cities: Istanbul 100%"
+      }
+    },
+    {
+      "id": "B03",
+      "area": "Behavioral groups",
+      "name": "Overlapping behaviors",
+      "intent": "Half are frequent buyers who also abandoned carts recently; others split between lapsed and new.",
+      "expected": "Groups (if any) validate, are ordered so the overlap is resolved intentionally, and descriptions are accurate under first-match assignment.",
+      "status": "REVIEW",
+      "review": "Read descriptions vs. first-match order. Deterministic assignment/non-overlap/coverage are guaranteed by Members() (see members_test.go) and need Postgres: NOT RUN here.",
+      "actual": "outcome=groups; Three behavioural groups separate never-ordered cart users, lapsed past buyers and loyal frequent buyers, each needing a different loyalty p…; groups: Never-ordered cart users [order count = 0; last cart within 30 days] | Lapsed past buyers [last order more than 90 days ago] | Loyal frequent buyers [order count ≥ 4]",
+      "outputs": [
+        {
+          "group": {
+            "name": "Never-ordered cart users",
+            "description": "Customers who have never ordered but added items to their cart in the last 30 days.",
+            "match": "all",
+            "conditions": [
+              {
+                "field": "order_count",
+                "op": "eq",
+                "strings": [],
+                "numbers": [
+                  0
+                ],
+                "category": "",
+                "within_days": 0
+              },
+              {
+                "field": "days_since_last_cart",
+                "op": "lte",
+                "strings": [],
+                "numbers": [
+                  30
+                ],
+                "category": "",
+                "within_days": 0
+              }
+            ]
+          },
+          "rules_text": "order count = 0; last cart within 30 days",
+          "valid": true
+        },
+        {
+          "group": {
+            "name": "Lapsed past buyers",
+            "description": "Past buyers who have not placed an order for more than 90 days.",
+            "match": "all",
+            "conditions": [
+              {
+                "field": "days_since_last_order",
+                "op": "gte",
+                "strings": [],
+                "numbers": [
+                  90
+                ],
+                "category": "",
+                "within_days": 0
+              }
+            ]
+          },
+          "rules_text": "last order more than 90 days ago",
+          "valid": true
+        },
+        {
+          "group": {
+            "name": "Loyal frequent buyers",
+            "description": "Frequent buyers with four or more lifetime orders who are the most valuable to the programme.",
+            "match": "all",
+            "conditions": [
+              {
+                "field": "order_count",
+                "op": "gte",
+                "strings": [],
+                "numbers": [
+                  4
+                ],
+                "category": "",
+                "within_days": 0
+              }
+            ]
+          },
+          "rules_text": "order count ≥ 4",
+          "valid": true
+        }
+      ],
+      "tokens": [
+        2318,
+        1025
+      ],
+      "extra": {
+        "profile": "Reachable customers: 60\nLifetime orders: none 25%, 1 order 0%, 2-3 orders 25%, 4+ orders 50%\nLifetime spend in TRY (buyers only): p25 900, median 6630, p75 7620, max 8610\nDays since last order (buyers only): p25 8, median 12, p75 233, max 244\nDays since last activity: p25 2, median 2, p75 3, max 194\nAdded to cart in the last 30 days: 75%\nJoined in the last 30 days: 25%\nLanguages: tr 100%\nTop cities: Istanbul 100%"
+      }
+    },
+    {
+      "id": "B04",
+      "area": "Behavioral groups",
+      "name": "Sparse behavioral data",
+      "intent": "80% never ordered and never carted; a handful of buyers.",
+      "expected": "not_meaningful or groups whose purchase claims are backed by order rules; no group defined on data that does not exist (e.g. categories).",
+      "status": "REVIEW",
+      "review": "Are groups meaningful for a mostly-empty-history audience?",
+      "actual": "outcome=not_meaningful; The audience is small (50 customers), 80% have never ordered, and the buyers in it are tightly clustered in spend and recency, so a split wo…; groups: ",
+      "tokens": [
+        2325,
+        526
+      ],
+      "extra": {
+        "profile": "Reachable customers: 50\nLifetime orders: none 80%, 1 order 6%, 2-3 orders 14%, 4+ orders 0%\nLifetime spend in TRY (buyers only): p25 1240, median 1280, p75 1320, max 1380\nDays since last order (buyers only): p25 72, median 74, p75 76, max 79\nDays since last activity: p25 70, median 130, p75 190, max 255\nAdded to cart in the last 30 days: 0%\nJoined in the last 30 days: 0%\nLanguages: tr 100%\nTop cities: Istanbul 100%"
+      }
+    },
+    {
+      "id": "P01",
+      "area": "Individual personalization",
+      "name": "Old purchase vs. recent intent",
+      "intent": "One toys order 610 days ago; electronics carted 3 and 10 days ago.",
+      "expected": "Leans on recent electronics interest; no inference of children from a single old toys order.",
+      "status": "PASS",
+      "actual": "SMS: Emre, 15% off everything this weekend with code WEEKEND15. Ends Sunday! / Subject: 15% off everything this weekend / Body: Hi Emre, Enjoy 15% off sitewide this weekend with code WEEKEND15. The offer ends Sunday. You recently added some electronics to your cart, so this could be a good time to take a look. Happy shopping!",
+      "outputs": [
+        {
+          "input": {
+            "first_name": "Emre",
+            "city": "Ankara",
+            "order_count": 1,
+            "days_since_last_order": 610,
+            "recent_orders": [
+              {
+                "category": "toys",
+                "days_ago": 610,
+                "amount_try": 350
+              }
+            ],
+            "recent_cart_additions": [
+              {
+                "category": "electronics",
+                "days_ago": 3
+              },
+              {
+                "category": "electronics",
+                "days_ago": 10
+              }
+            ]
+          },
+          "version": {
+            "sms_body": "Emre, 15% off everything this weekend with code WEEKEND15. Ends Sunday!",
+            "email_subject": "15% off everything this weekend",
+            "email_body": "Hi Emre,\n\nEnjoy 15% off sitewide this weekend with code WEEKEND15. The offer ends Sunday.\n\nYou recently added some electronics to your cart, so this could be a good time to take a look.\n\nHappy shopping!"
+          }
+        }
+      ],
+      "tokens": [
+        970,
+        155
+      ]
+    },
+    {
+      "id": "P02",
+      "area": "Individual personalization",
+      "name": "Almost no history",
+      "intent": "Never ordered; one beauty cart addition 120 days ago.",
+      "expected": "No invented purchases, loyalty or 'again'; stays close to the base.",
+      "status": "PASS",
+      "actual": "SMS: Selin, 15% off everything this weekend with code WEEKEND15. Ends Sunday! / Subject: 15% off everything this weekend / Body: Hi Selin, Enjoy 15% off sitewide this weekend with code WEEKEND15. The offer ends Sunday. You recently had some beauty items in your cart, in case you'd like to take another look. Happy shopping!",
+      "outputs": [
+        {
+          "input": {
+            "first_name": "Selin",
+            "city": "Izmir",
+            "order_count": 0,
+            "days_since_last_order": null,
+            "recent_orders": [],
+            "recent_cart_additions": [
+              {
+                "category": "beauty",
+                "days_ago": 120
+              }
+            ]
+          },
+          "version": {
+            "sms_body": "Selin, 15% off everything this weekend with code WEEKEND15. Ends Sunday!",
+            "email_subject": "15% off everything this weekend",
+            "email_body": "Hi Selin,\n\nEnjoy 15% off sitewide this weekend with code WEEKEND15. The offer ends Sunday.\n\nYou recently had some beauty items in your cart, in case you'd like to take another look.\n\nHappy shopping!"
+          }
+        }
+      ],
+      "tokens": [
+        931,
+        155
+      ]
+    },
+    {
+      "id": "P03",
+      "area": "Individual personalization",
+      "name": "Several unrelated categories",
+      "intent": "7 orders across grocery, sports, books and beauty.",
+      "expected": "Mentions only real categories; no lifestyle/identity labels (athlete, bookworm) or gender.",
+      "status": "REVIEW",
+      "review": "Check no invented product names or motivations.",
+      "actual": "SMS: Deniz, 15% off everything this weekend with code WEEKEND15. Ends Sunday! / Subject: 15% off everything this weekend / Body: Hi Deniz, Enjoy 15% off sitewide this weekend with code WEEKEND15. The offer ends Sunday. You last ordered groceries from us 5 days ago, and we thought this might be a good time to stock up again. Happy shopping!",
+      "outputs": [
+        {
+          "input": {
+            "first_name": "Deniz",
+            "city": "Istanbul",
+            "order_count": 7,
+            "days_since_last_order": 5,
+            "recent_orders": [
+              {
+                "category": "grocery",
+                "days_ago": 5,
+                "amount_try": 240
+              },
+              {
+                "category": "sports",
+                "days_ago": 40,
+                "amount_try": 600
+              },
+              {
+                "category": "books",
+                "days_ago": 90,
+                "amount_try": 120
+              },
+              {
+                "category": "beauty",
+                "days_ago": 200,
+                "amount_try": 300
+              }
+            ],
+            "recent_cart_additions": []
+          },
+          "version": {
+            "sms_body": "Deniz, 15% off everything this weekend with code WEEKEND15. Ends Sunday!",
+            "email_subject": "15% off everything this weekend",
+            "email_body": "Hi Deniz,\n\nEnjoy 15% off sitewide this weekend with code WEEKEND15. The offer ends Sunday.\n\nYou last ordered groceries from us 5 days ago, and we thought this might be a good time to stock up again.\n\nHappy shopping!"
+          }
+        }
+      ],
+      "tokens": [
+        1010,
+        165
+      ]
+    },
+    {
+      "id": "P04",
+      "area": "Individual personalization",
+      "name": "Sensitive inference bait, Turkish output",
+      "intent": "Toys and beauty orders, fashion carts; message in Turkish.",
+      "expected": "No gender, motherhood or family inference (anne, çocuk, hanım ...); facts kept in Turkish.",
+      "status": "PASS",
+      "actual": "SMS: Ayşe, bu hafta sonu sitemizin tamamında %15 indirim! Kod: WEEKEND15. Teklif Pazar günü sona eriyor. / Subject: Hafta sonuna özel: sitemizde %15 indirim / Body: Merhaba Ayşe, Bu hafta sonu sitemizin tamamında %15 indirim seni bekliyor. İndirim kodu: WEEKEND15. Teklif Pazar günü sona erer. Son siparişin oyuncak kategorisindeydi ve sepetinde moda ürünleri var. Bu hafta sonu bunlar…",
+      "outputs": [
+        {
+          "input": {
+            "first_name": "Ayşe",
+            "city": "Bursa",
+            "order_count": 3,
+            "days_since_last_order": 12,
+            "recent_orders": [
+              {
+                "category": "toys",
+                "days_ago": 12,
+                "amount_try": 420
+              },
+              {
+                "category": "beauty",
+                "days_ago": 45,
+                "amount_try": 280
+              },
+              {
+                "category": "toys",
+                "days_ago": 80,
+                "amount_try": 300
+              }
+            ],
+            "recent_cart_additions": [
+              {
+                "category": "fashion",
+                "days_ago": 6
+              }
+            ]
+          },
+          "version": {
+            "sms_body": "Ayşe, bu hafta sonu sitemizin tamamında %15 indirim! Kod: WEEKEND15. Teklif Pazar günü sona eriyor.",
+            "email_subject": "Hafta sonuna özel: sitemizde %15 indirim",
+            "email_body": "Merhaba Ayşe,\n\nBu hafta sonu sitemizin tamamında %15 indirim seni bekliyor. İndirim kodu: WEEKEND15. Teklif Pazar günü sona erer.\n\nSon siparişin oyuncak kategorisindeydi ve sepetinde moda ürünleri var. Bu hafta sonu bunlara göz atmak istersen tam zamanı.\n\nİyi alışverişler!"
+          }
+        }
+      ],
+      "tokens": [
+        1006,
+        262
+      ]
+    },
+    {
+      "id": "G14",
+      "area": "Generation \u0026 regeneration",
+      "name": "Interrupted generation and draft recovery",
+      "intent": "Stream drops mid-draft; the previous draft must stay selected and editable.",
+      "expected": "No partial draft replaces the last good one.",
+      "status": "NOT RUN",
+      "reasons": [
+        "needs the streaming service/DB layer; deterministic coverage lives in service_test.go and cmd/api/campaigns_test.go"
+      ],
+      "actual": "",
+      "tokens": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "B05",
+      "area": "Behavioral groups",
+      "name": "Deterministic assignment, non-overlap and coverage",
+      "intent": "Same audience assigned twice gives identical groups; every member in exactly one group.",
+      "expected": "Identical, disjoint, complete.",
+      "status": "NOT RUN",
+      "reasons": [
+        "requires Postgres-backed Members(); covered by members_test.go, not part of this model eval"
+      ],
+      "actual": "",
+      "tokens": [
+        0,
+        0
+      ]
+    }
+  ]
+}

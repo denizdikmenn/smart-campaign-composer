@@ -19,15 +19,38 @@ func (b *binds) add(v any) string {
 // customer stats row "s" plus its bind arguments. Call Validate first.
 func Compile(a Alternative, now time.Time) (string, []any) {
 	var b binds
+	return compileInto(&b, a, now), b.args
+}
+
+func compileInto(b *binds, a Alternative, now time.Time) string {
 	parts := make([]string, 0, len(a.Conditions))
 	for _, c := range a.Conditions {
-		parts = append(parts, compileCondition(&b, c, now))
+		parts = append(parts, compileCondition(b, c, now))
 	}
 	join := " AND "
 	if a.Match == "any" {
 		join = " OR "
 	}
-	return "(" + strings.Join(parts, join) + ")", b.args
+	return "(" + strings.Join(parts, join) + ")"
+}
+
+// CompileGroups compiles an audience plus ordered group rules (all validated)
+// into one predicate and a group expression: the first matching group wins
+// (1..n) and members matching none get 0, the remainder group. Groups are
+// therefore mutually exclusive and cover the whole audience.
+func CompileGroups(audience Alternative, groups []Alternative, now time.Time) (where, groupExpr string, args []any) {
+	var b binds
+	where = compileInto(&b, audience, now)
+	if len(groups) == 0 {
+		return where, "0", b.args
+	}
+	var g strings.Builder
+	g.WriteString("CASE")
+	for i, grp := range groups {
+		fmt.Fprintf(&g, " WHEN %s THEN %d", compileInto(&b, grp, now), i+1)
+	}
+	g.WriteString(" ELSE 0 END")
+	return where, g.String(), b.args
 }
 
 func compileCondition(b *binds, c Condition, now time.Time) string {

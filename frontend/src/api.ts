@@ -208,13 +208,14 @@ export interface PreviewCustomer {
   last_name: string
   email: string
   city: string
+  language: string
   email_consent: boolean
   sms_consent: boolean
   orders: number
   total_spent: number
 }
 
-export async function previewCustomers(a: AudienceAlternative, signal?: AbortSignal): Promise<PreviewCustomer[]> {
+export async function previewCustomers(a: Pick<AudienceAlternative, 'match' | 'conditions'>, signal?: AbortSignal): Promise<PreviewCustomer[]> {
   const res = await fetch('/api/segmentation/preview', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -232,4 +233,489 @@ export async function previewCustomers(a: AudienceAlternative, signal?: AbortSig
     throw new Error(message)
   }
   return ((await res.json()) as { customers: PreviewCustomer[] }).customers
+}
+
+// --- Campaigns: content drafts and approval -----------------------------------
+
+export interface ContentSettings {
+  tone: string
+  occasion: string
+  length: string
+  cta: string
+}
+
+export interface SettingOptions {
+  tone: string[]
+  occasion: string[]
+  length: string[]
+  cta: string[]
+}
+
+export interface Content {
+  sms_enabled: boolean
+  email_enabled: boolean
+  settings: ContentSettings
+  sms_body: string
+  email_subject: string
+  email_body: string
+}
+
+export interface Issue {
+  field: string
+  code: string
+  message: string
+  /** Blocking issues prevent approval; others are warnings. */
+  blocking: boolean
+  /** Content language the issue is about, if any. */
+  language?: string
+  /** Content unit at review time, e.g. "Variant B" or a group name. */
+  scope?: string
+}
+
+/** One language version of a message set. */
+export interface Version {
+  sms_body: string
+  email_subject: string
+  email_body: string
+  base_hash?: string
+}
+
+export interface LangStatus {
+  language: string
+  status: 'base' | 'ok' | 'stale' | 'missing'
+}
+
+export type DraftOrigin = 'initial' | 'regenerate' | 'candidate' | 'manual' | 'duplicate'
+export type Personalization = 'standard' | 'groups' | 'individual'
+
+
+export interface Draft extends Content {
+  version: number
+  created_at: string
+  updated_at: string
+  source: 'claude' | 'mock' | 'manual'
+  feedback: string
+  origin: DraftOrigin
+  parent_version: number | null
+  /** Language of the draft's own text; translations hold the others. */
+  language: string
+  translations: Record<string, Version>
+  localization: LangStatus[]
+  issues: Issue[]
+  notice?: string
+}
+
+
+export interface CampaignAudience {
+  name: string
+  match: 'all' | 'any'
+  conditions: unknown[]
+  conditions_text: string[]
+  counts: AudienceCounts
+  /** Longest first name among reachable members; bounds personalized length. */
+  max_first_name_len: number
+  /** Reachable members per content language. */
+  languages: Record<string, number>
+}
+
+export interface Campaign {
+  id: number
+  created_at: string
+  brief: string
+  audience: CampaignAudience
+  status: 'draft' | 'approved'
+  personalization: Personalization
+  selected_version: number | null
+  variants: Variant[]
+  /** Content languages present in the audience, base language first. */
+  languages: string[]
+  base_language: string
+  groups_note?: { outcome: 'groups' | 'not_meaningful'; message: string; warnings: string[] } | null
+  individual_applied_at: string | null
+  approved_version: number | null
+  approved_at: string | null
+}
+
+export interface Variant {
+  label: 'A' | 'B' | 'C'
+  position: number
+  draft_version: number
+}
+
+export interface Condition {
+  field: string
+  op: string
+  strings: string[]
+  numbers: number[]
+  category: string
+  within_days: number
+}
+
+export interface Group {
+  /** 0 is the remainder group ("everyone else"). */
+  position: number
+  name: string
+  description: string
+  match: 'all' | 'any'
+  conditions: Condition[]
+  conditions_text: string[]
+  size: number
+  languages: Record<string, number>
+  content: Record<string, Version>
+  status: 'proposed' | 'generating' | 'generated' | 'failed'
+  error?: string
+  stale: boolean
+  issues: Issue[]
+}
+
+export interface PersonalMessage {
+  customer_id: number
+  first_name: string
+  language: string
+  status: 'pending' | 'generated' | 'fallback' | 'failed'
+  reason?: string
+  content: Version
+  input_tokens: number
+  output_tokens: number
+  updated_at: string
+}
+
+export interface IndividualSummary {
+  total: number
+  pending: number
+  generated: number
+  fallback: number
+  failed: number
+  stale: number
+  running: boolean
+  applied: boolean
+  samples: PersonalMessage[]
+}
+
+export interface KindCost {
+  calls: number
+  input_tokens: number
+  output_tokens: number
+  usd: number | null
+}
+
+/** AI generation cost so far (not SMS/email delivery cost). */
+export interface Cost extends KindCost {
+  by_kind: Record<string, KindCost>
+}
+
+export interface Estimate {
+  calls: number
+  input_tokens: number
+  output_tokens: number
+  usd: number | null
+  model: string
+  basis: 'observed' | 'default'
+}
+
+export interface Member {
+  id: number
+  first_name: string
+  language: string
+  city: string
+  email_consent: boolean
+  sms_consent: boolean
+  order_count: number
+  total_spent: number
+  last_order_at: string | null
+  last_cart_at: string | null
+  last_active_at: string
+  created_at: string
+  group: number
+}
+
+export interface Candidate extends Member {
+  has_history: boolean
+}
+
+export interface PersonalInput {
+  first_name: string
+  city: string
+  order_count: number
+  days_since_last_order: number | null
+  recent_orders: { category: string; days_ago: number; amount_try: number }[]
+  recent_cart_additions: { category: string; days_ago: number }[]
+}
+
+export interface SampleResult {
+  message: PersonalMessage
+  input: PersonalInput | null
+  remaining: number
+  fallbacks: number
+  estimate: Estimate
+}
+
+export interface ResolvedMessage {
+  customer_id: number
+  first_name: string
+  channel: 'sms' | 'email'
+  variant_position?: number
+  group_position?: number
+  language: string
+  source: 'template' | 'group' | 'individual' | 'fallback'
+  subject?: string
+  body: string
+}
+
+export interface Bucket {
+  position: number
+  label: string
+  recipients: number
+  sms: number
+  email: number
+  share: number
+}
+
+export interface Plan {
+  recipients: number
+  messages: number
+  by_channel: Record<string, number>
+  by_language: Record<string, number>
+  by_source: Record<string, number>
+  variants: Bucket[]
+  groups: Bucket[]
+  prior_buyers: number
+  never_ordered: number
+  samples: ResolvedMessage[]
+}
+
+export interface Review {
+  ready: boolean
+  mode: Personalization
+  version: number
+  issues: Issue[]
+  plan: Plan
+  cost: Cost
+}
+
+
+export interface CampaignView {
+  campaign: Campaign
+  drafts: Draft[]
+  groups: Group[]
+  individual: IndividualSummary
+  cost: Cost
+  /** Background jobs running for this campaign. */
+  jobs: { groups: boolean; individual: boolean }
+  options: SettingOptions
+}
+
+/** Error from the campaign API; issues are set when approval validation failed. */
+export class CampaignError extends Error {
+  status: number
+  issues: Issue[]
+  constructor(message: string, status: number, issues: Issue[] = []) {
+    super(message)
+    this.status = status
+    this.issues = issues
+  }
+}
+
+async function send<T>(method: string, path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+  })
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    let issues: Issue[] = []
+    try {
+      const b: { error?: string; issues?: Issue[] } = await res.json()
+      if (b.error) message = b.error
+      issues = b.issues ?? []
+    } catch {
+      // keep the generic message
+    }
+    throw new CampaignError(message, res.status, issues)
+  }
+  return res.json() as Promise<T>
+}
+
+export function createCampaign(brief: string, a: AudienceAlternative) {
+  return send<CampaignView>('POST', '/api/campaigns', {
+    brief,
+    audience: { name: a.name, match: a.match, conditions: a.conditions },
+  })
+}
+
+export function getCampaign(id: number, signal?: AbortSignal) {
+  return send<CampaignView>('GET', `/api/campaigns/${id}`, undefined, signal)
+}
+
+export type DraftEdit = Content & { translations: Record<string, Version> }
+
+export async function saveDraft(id: number, version: number, c: DraftEdit) {
+  return (await send<{ draft: Draft }>('PUT', `/api/campaigns/${id}/drafts/${version}`, c)).draft
+}
+
+/** A blank draft, or a copy of fromVersion. */
+export async function createDraft(id: number, fromVersion = 0) {
+  return (await send<{ draft: Draft }>('POST', `/api/campaigns/${id}/drafts`, { from_version: fromVersion })).draft
+}
+
+/** (Re)translates missing or stale languages of a draft. */
+export async function localizeDraft(id: number, version: number) {
+  return (await send<{ draft: Draft }>('POST', `/api/campaigns/${id}/drafts/${version}/localize`, {})).draft
+}
+
+/** The draft a single-message campaign sends (and the base for personalization). */
+export function selectDraft(id: number, version: number) {
+  return send<CampaignView>('PUT', `/api/campaigns/${id}/selection`, { version })
+}
+
+/** Variants in order A, B, C; [] disables A/B testing. */
+export function setVariants(id: number, versions: number[]) {
+  return send<CampaignView>('PUT', `/api/campaigns/${id}/variants`, { versions })
+}
+
+export function setPersonalization(id: number, mode: Personalization, baseVersion = 0) {
+  return send<CampaignView>('PUT', `/api/campaigns/${id}/personalization`, { mode, base_version: baseVersion })
+}
+
+export function proposeGroups(id: number) {
+  return send<CampaignView>('POST', `/api/campaigns/${id}/groups/propose`, {})
+}
+
+export function groupsEstimate(id: number) {
+  return send<Estimate>('GET', `/api/campaigns/${id}/groups/estimate`, undefined)
+}
+
+export function generateGroups(id: number) {
+  return send<{ status: string }>('POST', `/api/campaigns/${id}/groups/generate`, {})
+}
+
+export async function groupExamples(id: number, position: number) {
+  return (await send<{ examples: { label: string; member: Member }[] }>('GET', `/api/campaigns/${id}/groups/${position}/examples`, undefined)).examples
+}
+
+export function saveGroup(id: number, position: number, content: Record<string, Version>) {
+  return send<CampaignView>('PUT', `/api/campaigns/${id}/groups/${position}`, { content })
+}
+
+export async function individualCandidates(id: number) {
+  return (await send<{ candidates: Candidate[] }>('GET', `/api/campaigns/${id}/individual/candidates`, undefined)).candidates
+}
+
+export function individualEstimate(id: number) {
+  return send<SampleResult>('GET', `/api/campaigns/${id}/individual/estimate`, undefined)
+}
+
+export function individualSample(id: number, customerId: number) {
+  return send<SampleResult>('POST', `/api/campaigns/${id}/individual/sample`, { customer_id: customerId })
+}
+
+export function applyIndividual(id: number) {
+  return send<{ status: string }>('POST', `/api/campaigns/${id}/individual/apply`, {})
+}
+
+export function stopIndividual(id: number) {
+  return send<{ status: string }>('POST', `/api/campaigns/${id}/individual/stop`, {})
+}
+
+/** Consistency gate, recipient plan and cost; version is the Standard draft to approve. */
+export function reviewCampaign(id: number, version: number, signal?: AbortSignal) {
+  return send<Review>('GET', `/api/campaigns/${id}/review?version=${version}`, undefined, signal)
+}
+
+export function approveCampaign(id: number, version: number) {
+  return send<CampaignView>('POST', `/api/campaigns/${id}/approve`, { version })
+}
+
+
+/** Field updates streamed while a draft is written (current value, not a delta). */
+export type StreamField = 'tone' | 'occasion' | 'length' | 'cta' | 'sms_body' | 'email_subject' | 'email_body'
+
+/**
+ * Generates a draft over server-sent events (POST, so not EventSource).
+ * onField receives each field's latest value; resolves with the stored draft.
+ * fromVersion 0 writes the first draft; otherwise that draft is revised.
+ */
+export async function streamGeneration(
+  id: number,
+  body: { from_version: number; feedback?: string; intent?: 'regenerate' | 'candidate' },
+  onField: (field: StreamField, value: string) => void,
+  signal?: AbortSignal,
+  onLocalizing?: (languages: string[]) => void,
+): Promise<Draft> {
+  const res = await fetch(`/api/campaigns/${id}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  })
+  if (!res.ok || !res.body || !res.headers.get('Content-Type')?.startsWith('text/event-stream')) {
+    let message = `Request failed (${res.status})`
+    try {
+      const b: { error?: string } = await res.json()
+      if (b.error) message = b.error
+    } catch {
+      // keep the generic message
+    }
+    throw new CampaignError(message, res.status)
+  }
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
+  let buf = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buf += value
+    let sep: number
+    while ((sep = buf.indexOf('\n\n')) >= 0) {
+      const block = buf.slice(0, sep)
+      buf = buf.slice(sep + 2)
+      let event = 'message'
+      let data = ''
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event: ')) event = line.slice(7)
+        else if (line.startsWith('data: ')) data += line.slice(6)
+      }
+      if (!data) continue
+      const payload = JSON.parse(data)
+      if (event === 'field') onField(payload.field, payload.value)
+      else if (event === 'localizing') onLocalizing?.(payload.languages ?? [])
+      else if (event === 'done') return payload.draft as Draft
+      else if (event === 'error') throw new CampaignError(payload.message, 0)
+    }
+  }
+  throw new CampaignError('The connection closed before the draft was finished. Please retry.', 0)
+}
+
+/** Supported personalization variable and channel limits (mirrors the backend). */
+export const FIRST_NAME = '{{first_name}}'
+export const MAX_SMS = 160
+export const MAX_SUBJECT = 80
+
+export function render(template: string, firstName: string) {
+  return template.split(FIRST_NAME).join(firstName)
+}
+
+/** Character count after substituting a first name of nameLen characters. */
+export function personalizedLength(template: string, nameLen: number) {
+  const uses = template.split(FIRST_NAME).length - 1
+  return [...template].length + uses * (nameLen - FIRST_NAME.length)
+}
+
+export const LANGUAGE_NAMES: Record<string, string> = { tr: 'Turkish', en: 'English' }
+export const languageName = (l: string) => LANGUAGE_NAMES[l] ?? l.toUpperCase()
+
+/** Content language a customer receives (mirrors the backend fallback rule). */
+export const contentLanguage = (l: string) => (l in LANGUAGE_NAMES ? l : 'en')
+
+/** Small USD amounts need more precision than cents. */
+export function formatUSD(v: number | null | undefined) {
+  if (v == null) return '—'
+  if (v === 0) return '$0'
+  if (v < 0.01) return `$${v.toFixed(4)}`
+  return `$${v.toFixed(2)}`
+}
+
+export function formatTokens(n: number) {
+  return n >= 10000 ? `${Math.round(n / 1000)}k` : new Intl.NumberFormat('en-US').format(n)
 }

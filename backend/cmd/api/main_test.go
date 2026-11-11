@@ -16,7 +16,7 @@ func (f fakeDB) Ping(context.Context) error { return f.err }
 func get(t *testing.T, db pinger, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	newHandler(slog.New(slog.DiscardHandler), db, nil, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	newHandler(slog.New(slog.DiscardHandler), db, nil, nil, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 	return rec
 }
 
@@ -50,7 +50,7 @@ func TestReady(t *testing.T) {
 
 func TestMethodNotAllowed(t *testing.T) {
 	rec := httptest.NewRecorder()
-	newHandler(slog.New(slog.DiscardHandler), fakeDB{}, nil, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/health", nil))
+	newHandler(slog.New(slog.DiscardHandler), fakeDB{}, nil, nil, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/health", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want 405", rec.Code)
 	}

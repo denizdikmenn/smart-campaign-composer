@@ -248,6 +248,7 @@ type PreviewCustomer struct {
 	LastName     string  `json:"last_name"`
 	Email        string  `json:"email"`
 	City         string  `json:"city"`
+	Language     string  `json:"language"`
 	EmailConsent bool    `json:"email_consent"`
 	SMSConsent   bool    `json:"sms_consent"`
 	Orders       int     `json:"orders"`
@@ -261,7 +262,7 @@ func (s *Service) Preview(ctx context.Context, a Alternative, limit int) ([]Prev
 	if err != nil {
 		return nil, err
 	}
-	a.Name = "preview"
+	a.Name, a.Reasoning = "preview", "Preview of matching customers."
 	if err := Validate(a, cat); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidRules, err)
 	}
@@ -273,7 +274,7 @@ func (s *Service) Preview(ctx context.Context, a Alternative, limit int) ([]Prev
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	rows, err := tx.Query(ctx, customers.StatsCTE+`SELECT first_name, last_name, email, city, email_consent, sms_consent, order_count, total_spent
+	rows, err := tx.Query(ctx, customers.StatsCTE+`SELECT first_name, last_name, email, city, language, email_consent, sms_consent, order_count, total_spent
 		FROM s WHERE `+where+` ORDER BY last_active_at DESC, id LIMIT `+fmt.Sprint(limit), args...)
 	if err != nil {
 		return nil, err
@@ -282,10 +283,68 @@ func (s *Service) Preview(ctx context.Context, a Alternative, limit int) ([]Prev
 	out := []PreviewCustomer{}
 	for rows.Next() {
 		var c PreviewCustomer
-		if err := rows.Scan(&c.FirstName, &c.LastName, &c.Email, &c.City, &c.EmailConsent, &c.SMSConsent, &c.Orders, &c.TotalSpent); err != nil {
+		if err := rows.Scan(&c.FirstName, &c.LastName, &c.Email, &c.City, &c.Language, &c.EmailConsent, &c.SMSConsent, &c.Orders, &c.TotalSpent); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// AudienceCheck is the server-side re-check of a stored audience: validated
+// rules, current counts and the longest first name among reachable members
+// (used to bound personalized message length).
+type AudienceCheck struct {
+	Counts          Counts   `json:"counts"`
+	ConditionText   []string `json:"conditions_text"`
+	MaxFirstNameLen int      `json:"max_first_name_len"`
+	// Reachable (email or SMS consent) members per customer language code.
+	Languages map[string]int `json:"languages"`
+}
+
+// CheckAudience validates rules against the current catalog (never trust the
+// client or an earlier result) and recounts them in a read-only transaction.
+func (s *Service) CheckAudience(ctx context.Context, a Alternative) (AudienceCheck, error) {
+	cat, _, err := s.catalog(ctx)
+	if err != nil {
+		return AudienceCheck{}, err
+	}
+	// Only the rules are re-checked; name/reasoning are display metadata.
+	a.Name, a.Reasoning = "stored audience", "Server-side re-check of stored rules."
+	a, _ = Normalize(a)
+	if err := Validate(a, cat); err != nil {
+		return AudienceCheck{}, fmt.Errorf("%w: %v", ErrInvalidRules, err)
+	}
+	where, args := Compile(a, s.now())
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return AudienceCheck{}, err
+	}
+	defer tx.Rollback(ctx)
+	out := AudienceCheck{ConditionText: Describe(a)}
+	err = tx.QueryRow(ctx, customers.StatsCTE+`SELECT count(*),
+		count(*) FILTER (WHERE email_consent), count(*) FILTER (WHERE sms_consent),
+		COALESCE(max(char_length(first_name)) FILTER (WHERE email_consent OR sms_consent), 0)
+		FROM s WHERE `+where, args...).Scan(&out.Counts.Total, &out.Counts.EmailEligible, &out.Counts.SMSEligible, &out.MaxFirstNameLen)
+	if err != nil {
+		return out, err
+	}
+	rows, err := tx.Query(ctx, customers.StatsCTE+`SELECT language, count(*) FROM s
+		WHERE (email_consent OR sms_consent) AND `+where+` GROUP BY language`, args...)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	out.Languages = map[string]int{}
+	for rows.Next() {
+		var l string
+		var n int
+		if err := rows.Scan(&l, &n); err != nil {
+			return out, err
+		}
+		out.Languages[l] = n
 	}
 	return out, rows.Err()
 }

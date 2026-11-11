@@ -84,6 +84,37 @@ var cities = []weighted[string]{
 // Cosmopolitan cities have more English-speaking customers.
 var cosmopolitan = map[string]bool{"Istanbul": true, "Izmir": true, "Antalya": true, "Mugla": true}
 
+// Language mix: ~3% German (deliberately not a supported content language,
+// so the delivery fallback is exercised), English 12% (28% in cosmopolitan
+// cities), Turkish otherwise (~75% overall). p is uniform in [0, 100).
+const (
+	germanShare       = 3
+	englishShare      = 12
+	englishShareCosmo = 28
+)
+
+type namePool struct{ female, male, surnames []string }
+
+var namesByLanguage = map[string]namePool{
+	"tr": {femaleNames, maleNames, surnames},
+	"en": {englishFemale, englishMale, englishSurnames},
+	"de": {germanFemale, germanMale, germanSurnames},
+}
+
+func languageFor(p float64, city string) string {
+	en := float64(englishShare)
+	if cosmopolitan[city] {
+		en = englishShareCosmo
+	}
+	switch {
+	case p < germanShare:
+		return "de"
+	case p < germanShare+en:
+		return "en"
+	}
+	return "tr"
+}
+
 type category struct {
 	name   string
 	median float64 // median order value, TRY
@@ -102,6 +133,13 @@ var (
 	surnames    = []string{"Yılmaz", "Kaya", "Demir", "Şahin", "Çelik", "Yıldız", "Yıldırım", "Öztürk", "Aydın", "Özdemir", "Arslan", "Doğan", "Kılıç", "Aslan", "Çetin", "Kara", "Koç", "Kurt", "Özkan", "Şimşek", "Polat", "Korkmaz", "Çakır", "Erdoğan", "Güneş", "Aksoy", "Avcı", "Türkmen", "Bozkurt", "Tekin", "Acar", "Karaca", "Uçar", "Taş", "Sönmez"}
 
 	// Reserved by RFC 2606: mail to these domains never reaches a real person.
+	englishFemale   = []string{"Emma", "Olivia", "Sophie", "Charlotte", "Emily", "Grace", "Hannah", "Lucy", "Amelia", "Chloe", "Jessica", "Laura", "Sarah", "Rachel", "Megan"}
+	englishMale     = []string{"James", "Oliver", "William", "Jack", "Thomas", "Daniel", "Matthew", "Henry", "George", "Samuel", "David", "Michael", "Ryan", "Adam", "Luke"}
+	englishSurnames = []string{"Smith", "Johnson", "Williams", "Brown", "Taylor", "Wilson", "Davies", "Evans", "Thomas", "Roberts", "Walker", "Wright", "Thompson", "White", "Hughes", "Green", "Hall", "Clarke", "Baker", "Turner"}
+	germanFemale    = []string{"Anna", "Lena", "Laura", "Julia", "Sophie", "Lea", "Katharina", "Sarah", "Hannah", "Marie"}
+	germanMale      = []string{"Lukas", "Jonas", "Felix", "Maximilian", "Leon", "Paul", "Tobias", "Florian", "Niklas", "Jan"}
+	germanSurnames  = []string{"Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Koch", "Richter"}
+
 	emailDomains = []weighted[string]{{"example.com", 60}, {"example.org", 25}, {"example.net", 15}}
 
 	phonePrefixes = []string{"505", "532", "533", "535", "536", "538", "541", "542", "543", "544", "545", "551", "552", "553", "554"}
@@ -287,25 +325,22 @@ func (g *generator) finish(h history, maxLagDays float64) history {
 
 func (g *generator) customer(id int64, h history, emails, phones map[string]bool) Customer {
 	r := g.r
-	first := pickString(r, femaleNames, maleNames)
-	last := surnames[r.IntN(len(surnames))]
-
 	c := Customer{
 		ID:           id,
-		FirstName:    first,
-		LastName:     last,
 		City:         pick(r, cities),
-		Language:     "tr",
 		CreatedAt:    h.created,
 		LastActiveAt: h.lastActive,
 	}
-	pEnglish := 0.10
-	if cosmopolitan[c.City] {
-		pEnglish = 0.30
+	c.Language = languageFor(r.Float64()*100, c.City)
+	// Names fit the language: an English speaker named Hüseyin is possible
+	// but rare (about 1 in 1000 foreign-language customers).
+	names := namesByLanguage[c.Language]
+	if c.Language != "tr" && r.Float64() < 0.001 {
+		names = namesByLanguage["tr"]
 	}
-	if r.Float64() < pEnglish {
-		c.Language = "en"
-	}
+	first := pickString(r, names.female, names.male)
+	last := names.surnames[r.IntN(len(names.surnames))]
+	c.FirstName, c.LastName = first, last
 
 	f, l := strings.ToLower(ascii.Replace(first)), strings.ToLower(ascii.Replace(last))
 	local := [...]string{f + "." + l, f + l, f + "_" + l, f[:1] + "." + l}[r.IntN(4)]

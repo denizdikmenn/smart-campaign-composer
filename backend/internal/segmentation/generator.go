@@ -3,7 +3,6 @@ package segmentation
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -11,7 +10,8 @@ import (
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go/v2"
-	"github.com/anthropics/anthropic-sdk-go/v2/option"
+
+	"github.com/smart-campaign-composer/backend/internal/llm"
 )
 
 // Generator proposes audience alternatives for a brief. Its output is
@@ -50,15 +50,13 @@ type Assessment struct {
 	Suggestions []string `json:"suggestions"`
 }
 
-// Typed errors so the API layer can show a useful message.
+// Typed errors, shared with other Claude-backed features (see package llm).
 var (
-	ErrAuth     = errors.New("the Anthropic API key was rejected")
-	ErrRetry    = errors.New("the AI service is busy or unavailable, please retry")
-	ErrRefusal  = errors.New("the AI declined to process this brief")
-	ErrBadReply = errors.New("the AI returned an unusable response")
+	ErrAuth     = llm.ErrAuth
+	ErrRetry    = llm.ErrRetry
+	ErrRefusal  = llm.ErrRefusal
+	ErrBadReply = llm.ErrBadReply
 )
-
-const defaultModel = "claude-haiku-5-5"
 
 type Claude struct {
 	client anthropic.Client
@@ -67,10 +65,7 @@ type Claude struct {
 
 // NewClaude builds a client; model "" selects the default (Haiku in dev).
 func NewClaude(apiKey, model string) *Claude {
-	if model == "" {
-		model = defaultModel
-	}
-	return &Claude{client: anthropic.NewClient(option.WithAPIKey(apiKey), option.WithMaxRetries(1)), model: model}
+	return &Claude{client: llm.NewClient(apiKey), model: llm.Model(model)}
 }
 
 func (c *Claude) Source() string { return "claude" }
@@ -89,17 +84,7 @@ func (c *Claude) Generate(ctx context.Context, brief string, cat Catalog, now ti
 		},
 	})
 	if err != nil {
-		var apierr *anthropic.Error
-		if errors.As(err, &apierr) {
-			switch {
-			case apierr.StatusCode == 401 || apierr.StatusCode == 403:
-				return GenResult{}, ErrAuth
-			case apierr.StatusCode == 429 || apierr.StatusCode >= 500:
-				return GenResult{}, ErrRetry
-			}
-			return GenResult{}, fmt.Errorf("anthropic request rejected (status %d)", apierr.StatusCode)
-		}
-		return GenResult{}, fmt.Errorf("%w: %v", ErrRetry, err)
+		return GenResult{}, llm.ClassifyError(err)
 	}
 	var text strings.Builder
 	for _, block := range resp.Content {
@@ -190,19 +175,7 @@ func opNames() []string {
 // from the same registry the validator uses.
 func outputSchema() map[string]any {
 	strArr := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
-	numArr := map[string]any{"type": "array", "items": map[string]any{"type": "number"}}
-	cond := map[string]any{
-		"type": "object", "additionalProperties": false,
-		"required": []string{"field", "op", "strings", "numbers", "category", "within_days"},
-		"properties": map[string]any{
-			"field":       map[string]any{"type": "string", "enum": fieldNames()},
-			"op":          map[string]any{"type": "string", "enum": opNames()},
-			"strings":     strArr,
-			"numbers":     numArr,
-			"category":    map[string]any{"type": "string"},
-			"within_days": map[string]any{"type": "integer"},
-		},
-	}
+	cond := ConditionSchema()
 	alt := map[string]any{
 		"type": "object", "additionalProperties": false,
 		"required": []string{"name", "reasoning", "match", "conditions"},

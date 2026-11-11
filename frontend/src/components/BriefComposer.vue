@@ -14,7 +14,8 @@ const EXAMPLES = [
 const STAGES = ['Reading your brief…', 'Designing audience alternatives…', 'Counting matching customers…']
 
 const emit = defineEmits<{
-  select: [alternative: AudienceAlternative | null]
+  /** brief is the text that produced the selected alternative. */
+  select: [alternative: AudienceAlternative | null, brief: string]
   /** A response arrived; true when it contains selectable options. */
   generated: [hasOptions: boolean]
 }>()
@@ -25,6 +26,7 @@ const stage = ref(0)
 const error = ref('')
 const errorWarnings = ref<string[]>([])
 const result = ref<SuggestionResponse | null>(null)
+const resultBrief = ref('') // brief the current result was generated from
 const selectedId = ref('')
 
 let controller: AbortController | null = null
@@ -70,10 +72,12 @@ async function generate() {
   loading.value = true
   timer = setInterval(() => (stage.value = Math.min(stage.value + 1, STAGES.length - 1)), 2500)
   try {
-    const res = await suggestAudiences(brief.value.trim(), controller.signal)
+    const text = brief.value.trim()
+    const res = await suggestAudiences(text, controller.signal)
     result.value = res
+    resultBrief.value = text
     selectedId.value = ''
-    emit('select', null)
+    emit('select', null, text)
     emit('generated', res.outcome === 'supported' && res.alternatives.some((a) => !a.empty))
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') return
@@ -120,7 +124,7 @@ function closePreview() {
 
 function choose(a: AudienceAlternative) {
   selectedId.value = a.id
-  emit('select', a)
+  emit('select', a, resultBrief.value)
 }
 
 // --- option row / slider ---

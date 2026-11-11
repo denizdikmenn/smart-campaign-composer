@@ -72,7 +72,7 @@ func TestGenerateInvariants(t *testing.T) {
 		if c.LastActiveAt.Before(c.CreatedAt) || c.LastActiveAt.Before(latest[c.ID]) || c.LastActiveAt.After(testNow) {
 			t.Fatalf("customer %d: last_active_at %v inconsistent (created %v, latest event %v)", c.ID, c.LastActiveAt, c.CreatedAt, latest[c.ID])
 		}
-		if c.Language != "tr" && c.Language != "en" {
+		if c.Language != "tr" && c.Language != "en" && c.Language != "de" {
 			t.Fatalf("customer %d: language %q", c.ID, c.Language)
 		}
 	}
@@ -123,13 +123,39 @@ func TestGenerateDistributions(t *testing.T) {
 		t.Errorf("customers without orders = %.3f", f)
 	}
 
-	var english int
+	var english, german int
 	for _, c := range ds.Customers {
-		if c.Language == "en" {
+		switch c.Language {
+		case "en":
 			english++
+		case "de":
+			german++
 		}
 	}
-	if f := frac(english); f < 0.10 || f > 0.30 {
+	if f := frac(english); f < 0.12 || f > 0.28 {
 		t.Errorf("english share = %.3f", f)
+	}
+	if f := frac(german); f < 0.01 || f > 0.06 {
+		t.Errorf("german share = %.3f", f)
+	}
+	if f := frac(n - english - german); f < 0.70 {
+		t.Errorf("turkish share = %.3f, want at least 0.70", f)
+	}
+	// Names fit the language: Turkish names among foreign speakers are rare.
+	turkish := map[string]bool{}
+	for _, n := range append(append([]string{}, femaleNames...), maleNames...) {
+		turkish[n] = true
+	}
+	mismatch := 0
+	for _, c := range ds.Customers {
+		if c.Language != "tr" && turkish[c.FirstName] {
+			mismatch++
+		}
+		if c.Language == "tr" && !turkish[c.FirstName] {
+			t.Fatalf("Turkish speaker with a foreign name: %+v", c)
+		}
+	}
+	if mismatch > (english+german)/100 {
+		t.Errorf("%d of %d foreign-language customers have Turkish names", mismatch, english+german)
 	}
 }

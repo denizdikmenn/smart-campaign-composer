@@ -37,8 +37,8 @@ function setGuide(hidden: boolean) {
 const STEPS = [
   { title: 'Describe', text: 'Write who you want to reach and why, in plain language.', ready: true },
   { title: 'Compare audiences', text: 'Get 2–3 audience options with real customer and channel counts.', ready: true },
-  { title: 'Write messages', text: 'Draft SMS and email copy with personalization.', ready: false },
-  { title: 'Review & send', text: 'Check everything, approve, and track delivery.', ready: false },
+  { title: 'Write messages', text: 'Claude drafts SMS and email copy with personalization; edit or regenerate.', ready: true },
+  { title: 'Review & approve', text: 'Preview for real recipients and approve. Sending comes later.', ready: true },
 ]
 </script>
 
@@ -80,7 +80,7 @@ const STEPS = [
         reach shown separately.
       </p>
       <a class="primary" :href="href('/campaigns/new')">Start a campaign</a>
-      <p class="note">Campaigns aren't saved yet. Drafts are lost when you reload the page.</p>
+      <p class="note">Campaigns are saved once you pick an audience, but listing and resuming them isn't available yet.</p>
     </div>
 
     <section v-if="!guideHidden" class="guide" aria-labelledby="guide-title">

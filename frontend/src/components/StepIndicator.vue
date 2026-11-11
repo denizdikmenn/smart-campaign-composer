@@ -21,7 +21,11 @@ const props = defineProps<{
   progress: number
   /** Live status of the current stage, e.g. "Compare options". */
   status: string
+  /** Highest stage index the user may jump back or forward to (default: none). */
+  reachable?: number
 }>()
+const emit = defineEmits<{ select: [index: number] }>()
+const clickable = (i: number) => props.reachable !== undefined && i <= props.reachable && i !== props.current && props.steps[i]?.available
 
 const clamp = (n: number) => Math.min(1, Math.max(0, n))
 // Overall fill of the track, from the first node to the last.
@@ -34,7 +38,7 @@ const state = (i: number) =>
 </script>
 
 <template>
-  <nav class="stepper" aria-label="Campaign progress">
+  <nav class="stepper" aria-label="Campaign progress" :style="{ '--n': steps.length }">
     <!-- Compact version for narrow screens. -->
     <p class="compact" aria-hidden="true">
       <span class="compact-step">Step {{ current + 1 }} of {{ steps.length }}</span>
@@ -53,6 +57,7 @@ const state = (i: number) =>
         :class="[state(i), { soon: !s.available }]"
         :aria-current="state(i) === 'current' ? 'step' : undefined"
       >
+        <button v-if="clickable(i)" type="button" class="jump" :aria-label="`Go to ${s.label}`" @click="emit('select', i)" />
         <span class="node" aria-hidden="true">
           <svg v-if="state(i) === 'done'" viewBox="0 0 16 16">
             <path d="m4 8.5 2.5 2.5L12 5.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
@@ -109,14 +114,14 @@ const state = (i: number) =>
   }
 }
 
-/* Track behind the nodes: nodes are centred in 4 equal columns (at 1/8, 3/8, 5/8, 7/8),
+/* Track behind the nodes: nodes are centred in --n equal columns (at 1/2n, 3/2n, ...),
    so the rail runs from the first centre to the last and segments are equal. */
 .rail {
   --pad: 20px;
   position: absolute;
   top: calc(16px + var(--node) / 2 - 2px);
-  left: calc(var(--pad) + (100% - 2 * var(--pad)) / 8);
-  right: calc(var(--pad) + (100% - 2 * var(--pad)) / 8);
+  left: calc(var(--pad) + (100% - 2 * var(--pad)) / (2 * var(--n)));
+  right: calc(var(--pad) + (100% - 2 * var(--pad)) / (2 * var(--n)));
   height: 4px;
   border-radius: 99px;
   background: var(--border);
@@ -132,12 +137,13 @@ const state = (i: number) =>
 ol {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(var(--n), 1fr);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 li {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -162,6 +168,19 @@ li {
     border-color 0.3s,
     color 0.3s,
     box-shadow 0.3s;
+}
+.jump {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.jump:hover ~ .text .label {
+  text-decoration: underline;
 }
 .node svg {
   width: 16px;
