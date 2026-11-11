@@ -10,6 +10,7 @@ import {
   type Summary,
 } from './api'
 import AudienceCard from './components/AudienceCard.vue'
+import BriefComposer from './components/BriefComposer.vue'
 import CustomerTable from './components/CustomerTable.vue'
 import MetricCard from './components/MetricCard.vue'
 
@@ -143,6 +144,9 @@ onUnmounted(() => controller?.abort())
       <h1>Smart Campaign Composer</h1>
       <p>Audience explorer</p>
     </header>
+
+    <h2>Campaign brief</h2>
+    <BriefComposer />
 
     <h2>Overview</h2>
     <section class="grid" aria-label="Overview">

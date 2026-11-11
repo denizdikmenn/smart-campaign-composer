@@ -98,3 +98,101 @@ export function fetchAudiences(category: string, signal?: AbortSignal) {
   if (category) params.set('category', category)
   return get<AudienceReport>(`/api/audiences?${params}`, signal)
 }
+
+// --- AI audience suggestions ------------------------------------------------
+
+export interface AudienceCounts {
+  total: number
+  email_eligible: number
+  sms_eligible: number
+}
+
+export interface AudienceAlternative {
+  id: string
+  name: string
+  reasoning: string
+  primary: boolean
+  match: 'all' | 'any'
+  conditions: unknown[]
+  conditions_text: string[]
+  counts: AudienceCounts
+  /** Valid rules, but no customer matches today. */
+  empty: boolean
+}
+
+export type SuggestionOutcome = 'supported' | 'needs_clarification' | 'unsupported' | 'invalid' 
+
+export interface SuggestionResponse {
+  source: 'claude' | 'mock'
+  model?: string
+  outcome: SuggestionOutcome
+  message: string
+  questions: string[]
+  unsupported_requirements: string[]
+  suggestions: string[]
+  total_customers: number
+  alternatives: AudienceAlternative[]
+  warnings: string[]
+}
+
+/** Error from a POST that may carry validation warnings from the backend. */
+export class SuggestError extends Error {
+  warnings: string[]
+  constructor(message: string, warnings: string[] = []) {
+    super(message)
+    this.warnings = warnings
+  }
+}
+
+export async function suggestAudiences(brief: string, signal?: AbortSignal): Promise<SuggestionResponse> {
+  const res = await fetch('/api/segmentation/suggest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ brief }),
+    signal,
+  })
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    let warnings: string[] = []
+    try {
+      const body: { error?: string; warnings?: string[] } = await res.json()
+      if (body.error) message = body.error
+      warnings = body.warnings ?? []
+    } catch {
+      // keep the generic message
+    }
+    throw new SuggestError(message, warnings)
+  }
+  return res.json() as Promise<SuggestionResponse>
+}
+
+export interface PreviewCustomer {
+  first_name: string
+  last_name: string
+  email: string
+  city: string
+  email_consent: boolean
+  sms_consent: boolean
+  orders: number
+  total_spent: number
+}
+
+export async function previewCustomers(a: AudienceAlternative, signal?: AbortSignal): Promise<PreviewCustomer[]> {
+  const res = await fetch('/api/segmentation/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ match: a.match, conditions: a.conditions }),
+    signal,
+  })
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    try {
+      const body: { error?: string } = await res.json()
+      if (body.error) message = body.error
+    } catch {
+      // keep the generic message
+    }
+    throw new Error(message)
+  }
+  return ((await res.json()) as { customers: PreviewCustomer[] }).customers
+}

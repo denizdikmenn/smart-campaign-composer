@@ -18,6 +18,7 @@ import (
 	"github.com/smart-campaign-composer/backend/internal/customers"
 	"github.com/smart-campaign-composer/backend/internal/db"
 	"github.com/smart-campaign-composer/backend/internal/seed"
+	"github.com/smart-campaign-composer/backend/internal/segmentation"
 )
 
 const (
@@ -67,9 +68,18 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
+	var gen segmentation.Generator = segmentation.Mock{}
+	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+		claude := segmentation.NewClaude(key, os.Getenv("ANTHROPIC_MODEL"))
+		gen = claude
+		log.Info("audience generator: Claude")
+	} else {
+		log.Warn("ANTHROPIC_API_KEY not set; audience generator is the deterministic mock")
+	}
+
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           newHandler(log, pool, customers.NewStore(pool)),
+		Handler:           newHandler(log, pool, customers.NewStore(pool), segmentation.NewService(pool, gen, log)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -119,12 +129,23 @@ func setupDatabase(ctx context.Context, log *slog.Logger, pool *pgxpool.Pool) er
 	return nil
 }
 
-func newHandler(log *slog.Logger, db pinger, cs customerStore) http.Handler {
+func newHandler(log *slog.Logger, db pinger, cs customerStore, seg suggester) http.Handler {
 	mux := http.NewServeMux()
 	ch := customerHandler{log: log, store: cs}
 	mux.HandleFunc("GET /api/customers/summary", ch.summary)
 	mux.HandleFunc("GET /api/customers", ch.list)
 	mux.HandleFunc("GET /api/audiences", ch.audiences)
+	if seg != nil {
+		sh := segmentationHandler{log: log, svc: seg}
+		mux.HandleFunc("POST /api/segmentation/suggest", sh.suggest)
+		mux.HandleFunc("POST /api/segmentation/preview", sh.preview)
+	}
+	// Admin routes (briefs and raw model output); kept under a separate prefix.
+	if rr, ok := seg.(runReader); ok {
+		ah := adminHandler{log: log, runs: rr}
+		mux.HandleFunc("GET /api/admin/segmentation/runs", ah.list)
+		mux.HandleFunc("GET /api/admin/segmentation/runs/{id}", ah.get)
+	}
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})

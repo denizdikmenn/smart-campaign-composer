@@ -163,3 +163,6 @@ func whereClause(p *params, f Filter, now time.Time) string {
 	}
 	return " WHERE " + strings.Join(conds, " AND ")
 }
+
+// StatsCTE is statsCTE for other read-only packages (audience rule counting).
+const StatsCTE = statsCTE

@@ -38,7 +38,7 @@ func (f *fakeStore) List(_ context.Context, flt customers.Filter, _ time.Time, l
 func getCustomers(t *testing.T, s *fakeStore, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	h := newHandler(slog.New(slog.DiscardHandler), fakeDB{}, s)
+	h := newHandler(slog.New(slog.DiscardHandler), fakeDB{}, s, nil)
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
 	return rec
 }
