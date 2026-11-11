@@ -1,0 +1,39 @@
+# Production-like stack. docker-compose.dev.yml overrides it for development.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-composer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-composer}
+      POSTGRES_DB: ${POSTGRES_DB:-composer}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      PORT: "8080"
+      SEED_CUSTOMERS: ${SEED_CUSTOMERS:-5000}
+      DATABASE_URL: postgres://${POSTGRES_USER:-composer}:${POSTGRES_PASSWORD:-composer}@postgres:5432/${POSTGRES_DB:-composer}?sslmode=disable
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
