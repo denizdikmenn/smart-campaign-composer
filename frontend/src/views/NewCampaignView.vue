@@ -4,19 +4,20 @@ import { createCampaign, type AudienceAlternative, type CampaignView } from '../
 import BriefComposer from '../components/BriefComposer.vue'
 import ContentStudio, { type Step, type StudioPhase } from '../components/ContentStudio.vue'
 import StepIndicator from '../components/StepIndicator.vue'
-import { href } from '../router'
+import { href, navigate } from '../router'
 
 const number = new Intl.NumberFormat('en-US')
 
 // Planned stages: DESIGN.md §2 stage nav, covering REQUIREMENTS.md's workflow
 // (brief -> audience, content generation, human review/approval, delivery + monitoring).
-const STEPS = [
+const STEPS = computed(() => [
   { label: 'Audience', hint: 'Brief and targeting', available: true },
   { label: 'Content', hint: 'SMS and email drafts', available: true },
   { label: 'Strategy', hint: 'A/B test or personalization', available: true },
   { label: 'Review', hint: 'Check and approve', available: true },
-  { label: 'Delivery', hint: 'Send and monitor', available: false },
-]
+  // Sending lives on its own page so it survives refreshes.
+  { label: 'Delivery', hint: 'Send and monitor', available: studio.value.phase === 'approved' },
+])
 const hasOptions = ref(false) // a response with selectable audiences is on screen
 
 const chosen = ref<AudienceAlternative | null>(null) // alternative picked in the brief composer
@@ -35,6 +36,10 @@ const STEP_INDEX: Record<Step, number> = { content: 1, strategy: 2, review: 3 }
 const STEP_BY_INDEX: Step[] = ['content', 'content', 'strategy', 'review']
 
 function onStepSelect(i: number) {
+  if (i === 4 && campaign.value) {
+    navigate(`/campaigns/${campaign.value.campaign.id}/delivery`)
+    return
+  }
   if (i === 0) {
     if (studio.value.phase !== 'approved') backToAudience()
     return
@@ -97,7 +102,7 @@ const phase = computed(() => {
       :current="phase.current"
       :progress="phase.progress"
       :status="phase.status"
-      :reachable="campaign && studio.phase !== 'generating' ? 3 : undefined"
+      :reachable="campaign && studio.phase !== 'generating' ? (studio.phase === 'approved' ? 4 : 3) : undefined"
       @select="onStepSelect"
     />
     <header v-if="!campaign">
@@ -132,8 +137,8 @@ const phase = computed(() => {
           <span v-if="noReach" class="warn">No one in this audience has consented to email or SMS. Choose another or refine the brief.</span>
           <span v-if="createError" class="warn" role="alert">{{ createError }}</span>
         </p>
-        <button type="button" class="cta" :disabled="noReach || creating" @click="confirmAudience">
-          {{ creating ? 'Saving…' : 'Use this audience' }}
+        <button type="button" class="cta" :disabled="noReach || creating" :aria-busy="creating" @click="confirmAudience">
+          {{ creating ? 'Saving campaign' : 'Use this audience' }}
         </button>
       </div>
     </div>

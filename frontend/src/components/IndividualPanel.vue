@@ -13,6 +13,7 @@ import {
   type SampleResult,
 } from '../api'
 import { useCampaign } from '../campaign'
+import AiProgress from './AiProgress.vue'
 
 const store = useCampaign()
 const { view, approved } = store
@@ -76,11 +77,19 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
           </option>
         </select>
       </label>
-      <button type="button" class="btn" :disabled="!customerId || !!store.busy.value || running" @click="generateSample">
-        <span v-if="store.busy.value === 'Generating sample…'" class="spinner" aria-hidden="true" />
-        {{ store.busy.value === 'Generating sample…' ? 'Generating…' : 'Generate sample' }}
+      <button type="button" class="btn" :disabled="!customerId || !!store.busy.value || running" :aria-busy="store.busy.value === 'Generating sample…'" @click="generateSample">
+        {{ store.busy.value === 'Generating sample…' ? 'Generating' : 'Generate sample' }}
       </button>
     </div>
+
+    <AiProgress
+      v-if="store.busy.value === 'Generating sample…'"
+      title="Claude is writing a sample message"
+      detail="Using this customer's orders and cart history."
+      :stages="['Reading history', 'Writing message']"
+      :current="1"
+      compact
+    />
 
     <div v-if="sample" class="sample">
       <div class="box">
@@ -132,18 +141,26 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
     </div>
 
     <!-- 3. Progress -->
+    <AiProgress
+      v-if="running"
+      title="Claude is writing individual messages"
+      :detail="`${number.format(done)} of ${number.format(progress.total)} recipients · ${pct}%`"
+      :progress="progress.total ? done / progress.total : undefined"
+    >
+      <button type="button" class="btn" :disabled="!!store.busy.value" :aria-busy="store.busy.value === 'Stopping…'" @click="stop">Stop</button>
+    </AiProgress>
     <div v-if="progress.applied || running" class="box">
-      <p>
-        <span v-if="running" class="spinner" aria-hidden="true" />
-        <strong>{{ running ? 'Generating individual messages…' : progress.pending ? 'Stopped' : 'Individual messages ready' }}</strong>
+      <p v-if="!running">
+        <span v-if="progress.pending" class="state dirty">Stopped · {{ number.format(progress.pending) }} pending</span>
+        <span v-else-if="progress.failed" class="state failed">Done with {{ number.format(progress.failed) }} failed</span>
+        <span v-else class="state done">Individual messages ready</span>
       </p>
-      <div class="bar" role="progressbar" :aria-valuenow="pct" aria-valuemin="0" aria-valuemax="100"><span :style="{ width: pct + '%' }" /></div>
+      <div v-if="!running" class="bar" role="progressbar" :aria-valuenow="pct" aria-valuemin="0" aria-valuemax="100"><span :style="{ width: pct + '%' }" /></div>
       <p class="muted">
         {{ number.format(progress.generated) }} generated · {{ number.format(progress.failed) }} failed ·
         {{ number.format(progress.fallback) }} base draft · {{ number.format(progress.pending) }} pending ·
         ≈ {{ formatUSD(view.cost.by_kind.individual?.usd) }} projected
       </p>
-      <button v-if="running" type="button" class="btn" :disabled="!!store.busy.value" @click="stop">Stop</button>
     </div>
 
     <!-- 4. Representative outputs -->

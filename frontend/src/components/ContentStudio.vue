@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { createDraft, languageName, localizeDraft, type CampaignView, type Version } from '../api'
 import { createCampaignStore, draftLabel, ORIGIN_LABELS, provideCampaign, type Step, type StudioPhase } from '../campaign'
+import AiProgress from './AiProgress.vue'
 import ChannelEditor from './ChannelEditor.vue'
 import RecipientPreview from './RecipientPreview.vue'
 import ReviewPanel from './ReviewPanel.vue'
@@ -76,6 +77,36 @@ const liveText = computed<Version>(() => ({
 }))
 const readonly = computed(() => approved.value || live.active)
 
+// Fields stream in order (settings, SMS, subject, body, then translations), so the
+// furthest field received tells which stage Claude is on.
+const liveStages = computed(() => {
+  const s = ['Choosing tone & settings', 'Writing SMS', 'Writing email subject', 'Writing email body']
+  if (languages.value.length > 1) s.push('Translating')
+  return s
+})
+const liveStage = computed(() => {
+  if (live.localizing.length) return liveStages.value.length - 1
+  if (live.fields.email_body) return 3
+  if (live.fields.email_subject) return 2
+  if (live.fields.sms_body) return 1
+  return 0
+})
+const liveTitle = computed(() => {
+  const n = store.nextVersion.value
+  if (live.localizing.length) return `Translating Draft ${n}`
+  return `Claude is writing Draft ${n}`
+})
+const liveDetail = computed(() =>
+  live.localizing.length
+    ? `Into ${live.localizing.map(languageName).join(', ')}. The base text is done.`
+    : `${live.intent === 'candidate' ? 'An A/B candidate · ' : ''}${languageName(campaign.value.base_language)}${live.feedback ? ` · applying “${live.feedback}”` : ''}`,
+)
+// Follow the stream: show the channel being written.
+watch(liveStage, (s) => {
+  if (live.active && s >= 2 && s <= 3) channel.value = 'email'
+  else if (live.active && s === 1) channel.value = 'sms'
+})
+
 // --- drafts ----------------------------------------------------------------------------
 const feedback = ref('')
 async function regenerate() {
@@ -108,7 +139,7 @@ onMounted(() => {
 
 <template>
   <section class="studio" aria-label="Campaign content">
-    <p v-if="store.error.value" class="alert" role="alert">{{ store.error.value }}</p>
+    <div v-if="store.error.value" class="fail" role="alert"><span class="state failed">Failed</span><p class="msg">{{ store.error.value }}</p><button type="button" class="ghost small" @click="store.error.value = ''">Dismiss</button></div>
     <template v-if="store.step.value === 'content'">
     <!-- Drafts: working versions. Variants are drafts promoted in the strategy step. -->
     <div class="drafts" role="tablist" aria-label="Drafts">
@@ -127,14 +158,14 @@ onMounted(() => {
         <span v-if="campaign.approved_version === d.version && !campaign.variants.length" class="tag ok">Approved</span>
       </button>
       <span v-if="live.active" role="tab" aria-selected="true" class="draft-tab live">
-        Draft {{ store.nextVersion.value }} <span class="tag">{{ live.localizing.length ? 'translating…' : 'writing…' }}</span>
+        Draft {{ store.nextVersion.value }} <span class="state live">{{ live.localizing.length ? 'Translating' : 'Writing' }}</span>
       </span>
       <span class="save" role="status" aria-live="polite">
-        <template v-if="approved">Locked</template>
-        <template v-else-if="store.saveState.value === 'saving'">Saving…</template>
-        <template v-else-if="store.saveState.value === 'dirty'">Unsaved changes</template>
-        <template v-else-if="store.saveState.value === 'error'"><span class="danger">Not saved: {{ store.saveError.value }}</span></template>
-        <template v-else-if="current">Saved</template>
+        <span v-if="approved" class="state locked">Locked · approved</span>
+        <span v-else-if="store.saveState.value === 'saving'" class="state saving">Saving</span>
+        <span v-else-if="store.saveState.value === 'dirty'" class="state dirty">Unsaved changes</span>
+        <span v-else-if="store.saveState.value === 'error'" class="state failed" :title="store.saveError.value">Not saved: {{ store.saveError.value }}</span>
+        <span v-else-if="current" class="state saved">Saved</span>
       </span>
     </div>
 
@@ -143,8 +174,8 @@ onMounted(() => {
         {{ ORIGIN_LABELS[current.origin] }}<template v-if="current.parent_version"> from Draft {{ current.parent_version }}</template>
         <template v-if="current.feedback"> · “{{ current.feedback }}”</template>
       </span>
-      <button type="button" class="ghost small" :disabled="!!store.busy.value || live.active" @click="newDraft(0)">New blank draft</button>
-      <button type="button" class="ghost small" :disabled="!!store.busy.value || live.active" @click="newDraft(current.version)">
+      <button type="button" class="ghost small" :disabled="!!store.busy.value || live.active" :aria-busy="store.busy.value === 'Creating…'" @click="newDraft(0)">New blank draft</button>
+      <button type="button" class="ghost small" :disabled="!!store.busy.value || live.active" :aria-busy="store.busy.value === 'Duplicating…'" @click="newDraft(current.version)">
         Duplicate Draft {{ current.version }}
       </button>
       <label class="compare">
@@ -158,27 +189,36 @@ onMounted(() => {
       </label>
     </div>
 
-    <div v-if="live.error" class="alert" role="alert">
-      <span>{{ live.error }}</span>
-      <button type="button" class="ghost" @click="store.generate(live.from, live.intent, live.feedback)">Retry</button>
+    <div v-if="live.error" class="fail" role="alert">
+      <span class="state failed">{{ live.error.startsWith('Generation stopped') ? 'Stopped' : 'Generation failed' }}</span>
+      <p class="msg">{{ live.error }}</p>
+      <button type="button" class="ghost" @click="store.generate(live.from, live.intent, live.feedback)">
+        {{ live.error.startsWith('Generation stopped') ? 'Start again' : 'Retry' }}
+      </button>
     </div>
     <p v-if="live.notice" class="notice" role="status">{{ live.notice }}</p>
 
-    <div v-if="!current && !live.active" class="empty" aria-busy="true">
-      <p v-if="live.error">No draft yet.</p>
-      <p v-else>Preparing your first draft…</p>
+    <div v-if="!current && !live.active" class="empty">
+      <template v-if="live.error">
+        <strong>No draft yet</strong>
+        <p>Retry above to have Claude write the first draft.</p>
+      </template>
+      <AiProgress v-else title="Preparing your first draft" detail="Saving your settings and connecting to Claude." />
     </div>
 
     <div v-else class="grid">
       <div class="main">
-        <p v-if="showLive" class="streaming-note" role="status">
-          <template v-if="live.localizing.length">Translating Draft {{ store.nextVersion.value }} into {{ live.localizing.map(languageName).join(', ') }}…</template>
-          <template v-else>
-            Claude is writing Draft {{ store.nextVersion.value }}{{ live.intent === 'candidate' ? ' (an A/B candidate)' : '' }} in
-            {{ languageName(campaign.base_language) }}.
-          </template>
-          <button type="button" class="link" @click="store.stopGeneration">Stop</button>
-        </p>
+        <AiProgress
+          v-if="showLive"
+          :title="liveTitle"
+          :detail="liveDetail"
+          :stages="liveStages"
+          :current="liveStage"
+          :progress="(liveStage + 0.5) / liveStages.length"
+          compact
+        >
+          <button type="button" class="ghost small" @click="store.stopGeneration">Stop</button>
+        </AiProgress>
 
         <!-- Languages present in the audience -->
         <div v-if="!showLive && languages.length > 1" class="langs" role="tablist" aria-label="Language">
@@ -202,9 +242,10 @@ onMounted(() => {
             type="button"
             class="ghost small"
             :disabled="!!store.busy.value"
+            :aria-busy="store.busy.value === 'Translating…'"
             @click="updateTranslations"
           >
-            {{ store.busy.value === 'Translating…' ? 'Translating…' : 'Update translations' }}
+            {{ store.busy.value === 'Translating…' ? 'Translating' : 'Update translations' }}
           </button>
         </div>
         <p v-if="translationIssue && !showLive" class="note" :class="{ danger: translationIssue.blocking }">{{ translationIssue.message }}</p>
@@ -286,8 +327,8 @@ onMounted(() => {
             </label>
             <div class="regen">
               <p>Creates Draft {{ store.nextVersion.value }}; Draft {{ current.version }} is kept.</p>
-              <button type="button" class="secondary" :disabled="live.active" @click="regenerate">
-                {{ live.active ? 'Writing…' : `Regenerate as Draft ${store.nextVersion.value}` }}
+              <button type="button" class="secondary" :disabled="live.active" :aria-busy="live.active" @click="regenerate">
+                {{ live.active ? `Writing Draft ${store.nextVersion.value}` : `Regenerate as Draft ${store.nextVersion.value}` }}
               </button>
             </div>
           </template>
@@ -376,7 +417,18 @@ button:disabled {
   border-color: var(--accent);
 }
 .draft-tab.live {
-  border-style: dashed;
+  color: var(--accent);
+  border-color: transparent;
+  background:
+    linear-gradient(var(--selected-surface), var(--selected-surface)) padding-box,
+    linear-gradient(90deg, #dde8b5, #204d3c, #dde8b5) border-box;
+  background-size: 100% 100%, 200% 100%;
+  animation: flow 1.6s linear infinite;
+}
+@keyframes flow {
+  to {
+    background-position: 0 0, -200% 0;
+  }
 }
 .tag {
   padding: 0 7px;
@@ -456,11 +508,21 @@ button:disabled {
   border-radius: var(--radius-control);
 }
 .empty {
+  display: grid;
+  gap: 4px;
   padding: 40px;
   text-align: center;
   color: var(--text-muted);
   border: 1px dashed var(--border);
   border-radius: var(--radius);
+}
+.empty p {
+  margin: 0;
+}
+.empty:has(.ai-progress) {
+  padding: 0;
+  text-align: left;
+  border: 0;
 }
 .grid {
   display: grid;
@@ -517,13 +579,6 @@ button:disabled {
 .compare-actions {
   display: flex;
   justify-content: space-between;
-}
-.streaming-note {
-  margin: 0;
-  padding: 8px 12px;
-  font-size: 13px;
-  border-radius: var(--radius-control);
-  background: var(--selected-surface);
 }
 .link {
   margin-left: 6px;

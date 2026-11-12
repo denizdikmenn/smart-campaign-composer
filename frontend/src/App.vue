@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { href, route } from './router'
+import { deliveryId, href, route, type Route } from './router'
 import CampaignsView from './views/CampaignsView.vue'
+import DeliveryView from './views/DeliveryView.vue'
 import ExplorerView from './views/ExplorerView.vue'
 import NewCampaignView from './views/NewCampaignView.vue'
 
@@ -11,7 +12,7 @@ const VIEWS = {
   '/explorer': ExplorerView,
 } as const
 
-const view = computed(() => VIEWS[route.value])
+const view = computed(() => (deliveryId.value ? DeliveryView : VIEWS[route.value as Exclude<Route, `/campaigns/${number}/delivery`>]))
 const section = computed(() => (route.value.startsWith('/campaigns') ? 'campaigns' : 'explorer'))
 </script>
 
@@ -38,7 +39,8 @@ const section = computed(() => (route.value.startsWith('/campaigns') ? 'campaign
 
     <main class="page">
       <!-- KeepAlive: a generated brief and explorer filters survive switching pages. -->
-      <KeepAlive>
+      <!-- The delivery page is excluded: it polls, and reloads per campaign. -->
+      <KeepAlive exclude="DeliveryView">
         <component :is="view" />
       </KeepAlive>
     </main>

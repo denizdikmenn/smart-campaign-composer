@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { setVariants } from '../api'
 import { ORIGIN_LABELS, useCampaign } from '../campaign'
+import AiProgress from './AiProgress.vue'
 
 /** A/B test: 2-3 drafts explicitly promoted to variants. */
 const store = useCampaign()
@@ -96,11 +97,17 @@ function editCandidate() {
     <!-- New candidate -->
     <div v-if="canAdd" class="box candidate" :aria-busy="writingCandidate">
       <template v-if="writingCandidate">
-        <p class="status"><span class="spinner" aria-hidden="true" /> Writing Draft {{ store.nextVersion.value }} with a different approach…</p>
+        <AiProgress
+          :title="`Claude is writing Draft ${store.nextVersion.value}`"
+          detail="A different approach, so the A/B test compares something real."
+          :stages="['SMS', 'Email', 'Translations']"
+          :current="live.localizing.length ? 2 : live.fields.email_subject ? 1 : 0"
+          compact
+        >
+          <button type="button" class="btn" @click="store.stopGeneration">Stop</button>
+        </AiProgress>
         <p class="pre live">{{ live.fields.sms_body || '…' }}</p>
         <p v-if="live.fields.email_subject" class="live"><strong>{{ live.fields.email_subject }}</strong></p>
-        <p v-if="live.localizing.length" class="muted">Translating…</p>
-        <button type="button" class="btn" @click="store.stopGeneration">Stop</button>
       </template>
 
       <template v-else-if="candidateDraft">
@@ -108,8 +115,8 @@ function editCandidate() {
         <p class="pre live">{{ candidateDraft.sms_body }}</p>
         <p class="live"><strong>{{ candidateDraft.email_subject }}</strong></p>
         <div class="row">
-          <button type="button" class="btn primary" :disabled="busy" @click="acceptCandidate">
-            {{ store.busy.value === 'Saving variants…' ? 'Adding…' : `Add as Variant ${LABELS[slots.length]}` }}
+          <button type="button" class="btn primary" :disabled="busy" :aria-busy="store.busy.value === 'Saving variants…'" @click="acceptCandidate">
+            {{ store.busy.value === 'Saving variants…' ? 'Adding' : `Add as Variant ${LABELS[slots.length]}` }}
           </button>
           <button type="button" class="btn" :disabled="busy" @click="editCandidate">Edit first</button>
           <button type="button" class="btn" :disabled="busy" @click="candidate = 0">Not now</button>
@@ -119,7 +126,7 @@ function editCandidate() {
       <template v-else>
         <p><strong>Generate a candidate</strong> <span class="muted">· 1 AI call, same facts and offer, different angle</span></p>
         <textarea v-model="guidance" rows="2" maxlength="1000" :disabled="busy" placeholder="Optional direction, e.g. lead with urgency" />
-        <p v-if="live.error && live.intent === 'candidate'" class="error-text">{{ live.error }}</p>
+        <div v-if="live.error && live.intent === 'candidate'" class="fail" role="alert"><span class="state failed">Failed</span><p class="msg">{{ live.error }}</p></div>
         <div class="row">
           <button type="button" class="btn primary" :disabled="busy || !slots.length" @click="generateCandidate">Generate candidate</button>
         </div>

@@ -46,8 +46,10 @@ const unresolved = (s: string) => /\{\{|\}\}/.test(s)
   <section class="preview" aria-labelledby="preview-title">
     <h3 id="preview-title">Recipient preview</h3>
     <p class="note">{{ languageName(language) }} · sample customers</p>
-    <p v-if="loading" class="note">Loading sample recipients…</p>
-    <p v-else-if="error" class="error" role="alert">{{ error }}</p>
+    <ul v-if="loading" class="list" aria-label="Loading sample recipients" role="status">
+      <li v-for="n in 3" :key="n"><div class="skeleton-line short" /><div class="skeleton" style="height: 56px" /></li>
+    </ul>
+    <p v-else-if="error" class="error" role="alert"><span class="state failed">Failed</span> {{ error }}</p>
     <p v-else-if="!sample.length" class="note">No customers to preview.</p>
     <ul v-else class="list">
       <li v-for="c in sample" :key="c.email">

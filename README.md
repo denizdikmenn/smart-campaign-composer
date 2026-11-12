@@ -1,7 +1,7 @@
 # Smart Campaign Composer
 
-An AI-powered campaign composer (case study). Marketers will describe a campaign in natural language, Claude will
-propose audience rules and SMS/email copy, and a human approves before simulated delivery. All customer data is
+An AI-powered campaign composer (case study). Marketers describe a campaign in natural language, Claude
+proposes audience rules and SMS/email copy, a human approves, and the campaign is sent through mock providers. All customer data is
 synthetic and no real messages are sent. See [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md).
 
 ## Status
@@ -9,11 +9,12 @@ synthetic and no real messages are sent. See [docs/REQUIREMENTS.md](docs/REQUIRE
 **Built:** schema and deterministic seed data, a read-only Audience Explorer, Claude audience suggestions with
 backend validation, streamed SMS/email drafts (unlimited, editable, regenerated, duplicated or written by hand),
 optional A/B tests of 2–3 drafts, automatic localization by recipient language, Behavioral-group and Individual AI
-personalization with cost estimates, a deterministic consistency gate and explicit approval. Without
-`ANTHROPIC_API_KEY`, deterministic mock generators are used.
+personalization with cost estimates, a deterministic consistency gate and explicit approval, then an explicit Send:
+a separate delivery worker sends through rate-limited mock SMS/email providers with retries and idempotency, and a
+live monitoring page shows progress by channel, variant and group. Without `ANTHROPIC_API_KEY`, deterministic mock
+generators are used. Design decisions: [DECISIONS.md](DECISIONS.md).
 
-**Not built yet:** the delivery queue and mock providers (rate limiting, retries, idempotency), delivery monitoring and
-a metrics endpoint, a campaign list, `DECISIONS.md`, and `ai-sessions/`. Approving a campaign does not send anything.
+**Not built yet:** `ai-sessions/`, resuming a draft campaign from the list.
 
 ## Run
 
@@ -27,7 +28,46 @@ make test      # Go tests and frontend type-check, run in containers (starts Pos
 ```
 
 Use one of `make dev` / `make up` at a time (both use port 5173). The API is also on http://localhost:8080 and
-Postgres on 5432.
+Postgres on 5432. Both start four services: `postgres`, `backend` (API), `worker` (delivery, no port) and `frontend`.
+
+Worker settings (environment):
+
+| Variable | Default | Effect |
+|---|---|---|
+| `DELIVERY_RATE_PER_SECOND` | 100 | Provider calls per second, per channel |
+| `DELIVERY_CONCURRENCY` | 10 | Sends in flight per channel |
+| `MOCK_LATENCY_MS` | `80-400` | Simulated provider latency range |
+| `MOCK_FAULT_RATES` | `429=0.06,5xx=0.1,4xx=0.02,lost=0.03` | Random per-call faults: rate limit, server error, permanent rejection, lost response |
+| `MOCK_FAULT_SEED` | random | Reproduces a run's random faults |
+| `MOCK_PROVIDER_FAULTS` | `on` | `off` disables all simulated failures |
+
+Besides the random faults, a few recipients always fail the same way. The rule is a hash of the address into 100
+buckets, so it is reproducible across campaigns:
+
+| Channel | Bucket | Response | Kind |
+|---|---|---|---|
+| SMS | 0 | `400 SMS_INVALID_NUMBER` | permanent |
+| SMS | 1 | `403 SMS_BLOCKED_BY_CARRIER` | permanent |
+| SMS | 2 | `503 SMS_CARRIER_UNAVAILABLE` on the first 2 calls | transient, then sent |
+| Email | 0 | `400 EMAIL_INVALID_ADDRESS` | permanent |
+| Email | 1 | `422 EMAIL_SUPPRESSED` | permanent |
+| Email | 2 | `503 EMAIL_MAILBOX_BUSY` on the first call | transient, then sent |
+| Email | 3 | `503 EMAIL_MAILBOX_BUSY` on every call | exhausts its 4 attempts; retryable by hand |
+
+### Sending
+
+After approval, **Continue to sending** opens `#/campaigns/{id}/delivery`. It shows what Send will queue,
+recomputed now from the approved content and current consent. Sending takes an explicit **Send campaign** and a
+confirm. The API creates one job per recipient and channel and returns at once. The worker sends the jobs, and the
+page polls progress once a second until every message is finished. The page and its numbers come from PostgreSQL, so
+they survive refreshes and worker restarts. Approved campaigns are listed on the Campaigns page.
+
+The page also lists every message (recipient, channel, status, attempts, last error) with filters and paging. **History**
+shows each provider call: time, latency, HTTP status, code and outcome. **Retry** requeues one message that failed
+temporarily, and **Retry N failed** requeues all of them. A retry reuses the same delivery record and idempotency key,
+starts a new round of up to 4 attempts, and is checked for consent again. Permanent rejections, already accepted
+messages and skips can't be retried. Audience members who haven't consented to an enabled channel are recorded as
+**skipped** ("not eligible: no SMS consent") rather than silently left out.
 
 ## API
 
@@ -52,6 +92,15 @@ JSON unless noted.
 | `GET …/individual/candidates`, `POST …/individual/sample`, `GET …/individual/estimate`, `POST …/individual/apply`, `POST …/individual/stop` | Individual personalization: sample, estimate, explicit Apply to all (background, 4 concurrent calls), stop/resume |
 | `GET /api/campaigns/{id}/review?version=` | Consistency gate, recipient plan (per variant/group/language/channel/source) and AI cost |
 | `POST /api/campaigns/{id}/approve` | `{version}` (Standard draft; 0 with variants): re-checks audience and gate, then freezes a snapshot (`409` once approved, `422` with `issues` if invalid). Sends nothing |
+| `GET /api/campaigns` | The 20 most recent campaigns with approval and delivery status |
+| `POST /api/campaigns/{id}/send` | Queues the approved campaign once (`202` + delivery report). Idempotent: repeating it returns the current state. `409` if not approved or nobody is reachable |
+| `GET /api/campaigns/{id}/delivery` | Delivery report: status (`not_sent`, `queued`, `sending`, `completed`, `completed_with_failures`), totals, per-channel/variant/group counts, retries, top error reasons, next retry, worker heartbeat |
+| `GET /api/campaigns/{id}/messages?status=&channel=&page=&page_size=` | Recipient-level deliveries (status: `pending`, `retrying`, `sent`, `failed`, `skipped`; max 100 per page) |
+| `GET /api/campaigns/{id}/messages/{mid}` | One delivery with its content and attempt history |
+| `POST /api/campaigns/{id}/messages/{mid}/retry`, `POST /api/campaigns/{id}/retry-failed` | Requeue failed deliveries that weren't permanently rejected (`409` with the reason for a single message that can't be retried) |
+| `GET /api/metrics` | Queue depth (due, scheduled retries, in flight, oldest due age), per-channel status counts, sent in the last minute, attempts, worker heartbeat |
+
+After approval, `GET …/review` returns the recipient plan of the approved content (the pre-send summary).
 
 ### Content rules
 
@@ -109,12 +158,14 @@ The seed only runs on an empty table. After changing the schema or seed, reset t
 
 ```
 backend/cmd/api/            HTTP server, handlers, input validation
+backend/cmd/worker/         delivery worker process (no HTTP port; `worker -healthcheck`)
 backend/internal/db/        embedded schema.sql
 backend/internal/seed/      deterministic synthetic data
 backend/internal/customers/ customer and audience queries (pgx, parameterized SQL)
 backend/internal/llm/       shared Anthropic client setup and error mapping
 backend/internal/segmentation/ AI audience rules: generation, validation, compilation to SQL
-backend/internal/content/   streamed message drafts, validation, drafts and approval
+backend/internal/content/   streamed message drafts, validation, drafts and approval; approved-content resolution
+backend/internal/delivery/  queue (dispatch, claim, leases), worker, mock providers, retry policy, monitoring
 backend/internal/dbtest/    isolated-schema helper for database tests
 frontend/                   Vue 3 + TypeScript + Vite dashboard
 ```
@@ -125,11 +176,12 @@ frontend/                   Vue 3 + TypeScript + Vite dashboard
 - Consent is a boolean per channel, with no timestamp or audit history.
 - Seed phone numbers are random Turkish mobile-format numbers and could coincide with real ones; nothing is ever sent.
 - SMS length is counted in Unicode characters; GSM-7 vs. UCS-2 encoding (e.g. Turkish letters) and multi-part SMS are not modelled.
-- Campaigns are stored, but there is no list or URL to resume one after a page reload yet.
+- Approved campaigns can be reopened (list and delivery URL); draft campaigns cannot be resumed after a reload yet.
 - Only one generation per campaign runs at a time, and group/individual generation runs in-process; both are enforced
   in memory (single API instance). After a restart, “Resume” continues pending individual messages.
-- No delivery worker or monitoring dashboard yet: the deliveries table and breakdown query are the contract for them.
-  Monitoring will report delivery performance only (no opens, clicks, conversions or automatic winner selection).
+- Delivery runs in one worker instance; the 100/s per-channel limit is enforced in that process. Mock providers report
+  acceptance only, so monitoring shows "sent", never delivered, opened or clicked (no automatic A/B winner either).
+  See [DECISIONS.md](DECISIONS.md#known-limitations).
 - The audience–message consistency checks are a few keyword rules (first purchase / welcome back) and only warn.
 - The invented-facts check is a heuristic warning, not a guarantee.
 # smart-campaign-composer

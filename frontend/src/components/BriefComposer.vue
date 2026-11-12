@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { previewCustomers, suggestAudiences, SuggestError, type AudienceAlternative, type PreviewCustomer, type SuggestionResponse } from '../api'
+import AiProgress from './AiProgress.vue'
 import AlternativeCard from './AlternativeCard.vue'
 import PreviewSheet from './PreviewSheet.vue'
 
@@ -11,7 +12,7 @@ const EXAMPLES = [
   'Win back customers who bought electronics before but have not ordered in the last 3 months.',
   'Welcome offer for new sign-ups in Ankara or Izmir who have not bought anything yet.',
 ]
-const STAGES = ['Reading your brief…', 'Designing audience alternatives…', 'Counting matching customers…']
+const STAGES = ['Reading your brief', 'Designing audiences', 'Counting customers']
 
 const emit = defineEmits<{
   /** brief is the text that produced the selected alternative. */
@@ -210,9 +211,8 @@ onUnmounted(() => {
         {{ length }}/{{ MAX }}<template v-if="length > 0 && length < MIN"> · add a few more words</template>
       </span>
       <span class="actions">
-        <button v-if="loading" type="button" class="ghost" @click="cancel">Cancel</button>
-        <button type="button" class="primary" :disabled="!valid || loading" @click="generate">
-          {{ loading ? 'Generating…' : result ? 'Regenerate' : 'Suggest audiences' }}
+        <button type="button" class="primary" :disabled="!valid || loading" :aria-busy="loading" @click="generate">
+          {{ loading ? 'Suggesting' : result ? 'Regenerate' : 'Suggest audiences' }}
         </button>
       </span>
     </div>
@@ -222,10 +222,19 @@ onUnmounted(() => {
       <button v-for="ex in EXAMPLES" :key="ex" type="button" class="example" @click="brief = ex">{{ ex }}</button>
     </div>
 
-    <p v-if="loading" class="status" role="status">{{ STAGES[stage] }}</p>
+    <AiProgress
+      v-if="loading"
+      :title="result ? 'Claude is reworking the audiences' : 'Claude is designing audiences'"
+      detail="Each option is validated and counted against real customer data."
+      :stages="STAGES"
+      :current="stage"
+    >
+      <button type="button" class="ghost" @click="cancel">Cancel</button>
+    </AiProgress>
 
     <div v-if="error" class="alert" role="alert">
-      <div>
+      <span class="state failed">Failed</span>
+      <div class="msg">
         <strong>{{ error }}</strong>
         <ul v-if="errorWarnings.length">
           <li v-for="w in errorWarnings" :key="w">{{ w }}</li>
@@ -477,12 +486,20 @@ button {
 }
 .alert {
   display: flex;
-  justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
-  padding: 10px 14px;
-  border: 1px solid var(--danger);
-  border-radius: 8px;
+  padding: 12px 14px;
+  border: 1px solid rgb(163 57 50 / 0.35);
+  border-radius: var(--radius-control);
   color: var(--danger);
+  background: var(--danger-soft);
+}
+.alert .state {
+  padding: 0;
+  background: none;
+}
+.alert .msg {
+  flex: 1;
 }
 .alert ul,
 .warnings {
@@ -498,9 +515,14 @@ button {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
 }
+/* Previous results while regenerating: visibly out of date, not clickable. */
 .alts.stale {
-  opacity: 0.5;
-  transition: opacity 0.2s;
+  opacity: 0.45;
+  filter: saturate(0.4) blur(1px);
+  pointer-events: none;
+  transition:
+    opacity 0.25s,
+    filter 0.25s;
 }
 /* Card row: all options side by side when they fit (easy comparison);
    otherwise a swipeable, snapping slider. */

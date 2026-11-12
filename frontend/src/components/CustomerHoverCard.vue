@@ -44,7 +44,7 @@ const position = computed(() => {
         </div>
         <div>
           <dt>Cart adds</dt>
-          <dd>{{ detail ? detail.carts : '…' }}</dd>
+          <dd><template v-if="detail">{{ detail.carts }}</template><span v-else class="skeleton-line inline" /></dd>
         </div>
       </dl>
 
@@ -57,7 +57,7 @@ const position = computed(() => {
         </li>
       </ul>
       <p v-else-if="detail" class="muted">No orders yet.</p>
-      <p v-else class="muted">Loading…</p>
+      <div v-else aria-hidden="true"><div class="skeleton-line" /><div class="skeleton-line" /><div class="skeleton-line short" /></div>
 
       <p class="hint">Click for full details</p>
     </div>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync/atomic"
@@ -250,6 +251,70 @@ func TestDraftsVariantsAndApproval(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("sending resolves the approved snapshot", func(t *testing.T) {
+		var skips []Message
+		collect := func() map[string]Message {
+			out := map[string]Message{}
+			skips = nil
+			if err := svc.ApprovedMessages(ctx, id, func(m Message) error {
+				if m.Skip != "" {
+					skips = append(skips, m)
+					return nil
+				}
+				out[fmt.Sprintf("%d/%s", m.CustomerID, m.Channel)] = m
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			return out
+		}
+		before := collect()
+		if len(before) != 60 { // 40 email + 20 SMS
+			t.Fatalf("messages %d", len(before))
+		}
+		// Audience members without SMS consent are reported as skips, with their assignment.
+		if len(skips) != 20 || skips[0].Channel != "sms" || skips[0].Skip != "not eligible: no SMS consent" || skips[0].Body != "" ||
+			skips[0].VariantPosition != variantFor(id, skips[0].CustomerID, 2) {
+			t.Fatalf("skips %d %+v", len(skips), skips)
+		}
+		// Even a direct change to the drafts table cannot alter what is sent.
+		if _, err := pool.Exec(ctx, `UPDATE campaign_drafts SET sms_body = 'CHANGED', email_body = 'CHANGED', translations = '{}' WHERE campaign_id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
+		after := collect()
+		for k, m := range before {
+			a := after[k]
+			if a != m || strings.Contains(a.Body, "CHANGED") {
+				t.Fatalf("%s changed after approval: %+v -> %+v", k, m, a)
+			}
+			if m.VariantPosition != variantFor(id, m.CustomerID, 2) {
+				t.Fatalf("%s: variant %d is not the deterministic assignment", k, m.VariantPosition)
+			}
+			if strings.Contains(m.Body, "{{") || !strings.Contains(m.Body, "Ali") && m.CustomerID != 40 {
+				t.Fatalf("%s: unrendered body %q", k, m.Body)
+			}
+		}
+		// Customer 5 prefers English; customer 1 Turkish (the base language).
+		if before["5/email"].Language != "en" || before["1/email"].Language != "tr" || before["5/email"].Body == before["1/email"].Body {
+			t.Fatalf("localization: %+v / %+v", before["5/email"], before["1/email"])
+		}
+		// Revoked consent is respected at dispatch time.
+		if _, err := pool.Exec(ctx, `UPDATE customers SET email_consent = false WHERE id = 1`); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := collect()["1/email"]; ok {
+			t.Fatal("customer 1 withdrew email consent")
+		}
+		if _, err := pool.Exec(ctx, `UPDATE customers SET email_consent = true WHERE id = 1`); err != nil {
+			t.Fatal(err)
+		}
+		// The pre-send review recomputes the plan from the snapshot.
+		rev, err := svc.Review(ctx, id, 0)
+		if err != nil || !rev.Ready || rev.Plan.Messages != 60 || len(rev.Plan.Variants) != 2 {
+			t.Fatalf("approved review %+v, %v", rev.Plan, err)
+		}
+	})
 }
 
 func TestStandardGate(t *testing.T) {
@@ -467,6 +532,31 @@ func TestIndividualPersonalization(t *testing.T) {
 	}
 	if rev.Plan.BySource["individual"] == 0 || rev.Plan.BySource["fallback"] == 0 {
 		t.Fatalf("sources %v", rev.Plan.BySource)
+	}
+	if _, err := svc.Approve(ctx, id, 0); err != nil {
+		t.Fatal(err)
+	}
+	sources := map[string]int{}
+	var personal Message
+	if err := svc.ApprovedMessages(ctx, id, func(m Message) error {
+		if m.Skip != "" {
+			return nil
+		}
+		sources[m.Source]++
+		if m.Source == "individual" && m.Channel == "email" && personal.Body == "" {
+			personal = m
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if sources["individual"] != rev.Plan.BySource["individual"] || sources["fallback"] != rev.Plan.BySource["fallback"] {
+		t.Fatalf("sent sources %v, planned %v", sources, rev.Plan.BySource)
+	}
+	var stored string
+	_ = pool.QueryRow(ctx, `SELECT email_body FROM personalized_messages WHERE campaign_id = $1 AND customer_id = $2`, id, personal.CustomerID).Scan(&stored)
+	if personal.Body != Render(stored, personal.FirstName) {
+		t.Fatalf("personalized body %q, stored %q", personal.Body, stored)
 	}
 	var runs int
 	_ = pool.QueryRow(ctx, `SELECT count(*) FROM content_runs WHERE campaign_id = $1 AND kind = 'individual'`, id).Scan(&runs)

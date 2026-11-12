@@ -18,6 +18,7 @@ import {
 } from '../api'
 import { useCampaign } from '../campaign'
 import ChannelEditor from './ChannelEditor.vue'
+import AiProgress from './AiProgress.vue'
 
 const store = useCampaign()
 const { view, campaign, approved } = store
@@ -95,11 +96,17 @@ const issuesFor = (g: Group, ch: 'sms' | 'email') =>
   <div class="groups">
     <div class="row">
       <p class="muted">Every reachable customer lands in exactly one group.</p>
-      <button v-if="!approved" type="button" class="btn" :disabled="!!store.busy.value || running" @click="propose">
-        <span v-if="store.busy.value === 'Proposing groups…'" class="spinner" aria-hidden="true" />
-        {{ store.busy.value === 'Proposing groups…' ? 'Proposing…' : groups.length ? 'Propose again' : 'Propose groups' }}
+      <button v-if="!approved" type="button" class="btn" :disabled="!!store.busy.value || running" :aria-busy="store.busy.value === 'Proposing groups…'" @click="propose">
+        {{ store.busy.value === 'Proposing groups…' ? 'Proposing' : groups.length ? 'Propose again' : 'Propose groups' }}
       </button>
     </div>
+
+    <AiProgress
+      v-if="store.busy.value === 'Proposing groups…'"
+      title="Claude is proposing groups"
+      detail="Splitting reachable customers by behaviour so every person lands in one group."
+      compact
+    />
 
     <div v-if="note" class="box" :class="{ warn: note.outcome === 'not_meaningful' }" role="status">
       <p>{{ note.message }}</p>
@@ -122,7 +129,7 @@ const issuesFor = (g: Group, ch: 'sms' | 'email') =>
         </div>
         <p class="muted">{{ g.description }}</p>
         <p class="muted rules">{{ g.conditions_text.join(' · ') }}</p>
-        <p v-if="g.error" class="error-text">{{ g.error }}</p>
+        <p v-if="g.error" class="error-text"><span class="state failed">Failed</span> {{ g.error }}</p>
 
         <div v-if="g.status === 'generated' && editing !== g.position" class="messages">
           <p v-for="(v, l) in g.content" :key="l" class="pre">
@@ -168,7 +175,9 @@ const issuesFor = (g: Group, ch: 'sms' | 'email') =>
           <button type="button" class="btn" @click="toggleExamples(g)">{{ examples[g.position] ? 'Hide preview' : 'Preview a typical customer' }}</button>
           <button v-if="g.status === 'generated' && !approved && editing !== g.position" type="button" class="btn" @click="edit(g)">Edit messages</button>
         </div>
-        <p v-if="examples[g.position] === 'loading'" class="muted">Loading…</p>
+        <div v-if="examples[g.position] === 'loading'" class="examples" aria-label="Loading preview" role="status">
+          <div v-for="n in 2" :key="n" class="box"><div class="skeleton-line short" /><div class="skeleton-line" /><div class="skeleton-line" /></div>
+        </div>
         <ul v-else-if="examples[g.position]" class="examples">
           <li v-for="ex in examples[g.position] as { label: string; member: Member }[]" :key="ex.member.id" class="box">
             <p>
@@ -191,10 +200,14 @@ const issuesFor = (g: Group, ch: 'sms' | 'email') =>
 
     <div v-if="groups.length && !approved" class="box cost">
       <template v-if="running">
-        <p class="status">
-          <span class="spinner" aria-hidden="true" /> Writing group messages… {{ groups.filter((g) => g.status === 'generated').length }} of
-          {{ groups.filter((g) => g.size).length }} done
-        </p>
+        <AiProgress
+          title="Claude is writing group messages"
+          :detail="`${groups.filter((g) => g.status === 'generated').length} of ${groups.filter((g) => g.size).length} groups done`"
+          :stages="groups.filter((g) => g.size).map((g) => g.name)"
+          :current="groups.filter((g) => g.size).findIndex((g) => g.status !== 'generated')"
+          :progress="groups.filter((g) => g.size).length ? groups.filter((g) => g.status === 'generated').length / groups.filter((g) => g.size).length : 0"
+          compact
+        />
       </template>
       <template v-else>
         <p v-if="estimate">

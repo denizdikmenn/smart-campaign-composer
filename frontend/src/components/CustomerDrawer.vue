@@ -133,7 +133,7 @@ function onKey(e: KeyboardEvent) {
             </div>
             <div>
               <dt>Last cart add</dt>
-              <dd>{{ detail ? date(detail.last_cart_at) : '…' }}</dd>
+              <dd><template v-if="detail">{{ date(detail.last_cart_at) }}</template><span v-else class="skeleton-line inline" aria-label="Loading" /></dd>
             </div>
           </dl>
 

@@ -21,6 +21,9 @@ type Message struct {
 	Source          string `json:"source"` // template | group | individual | fallback
 	Subject         string `json:"subject,omitempty"`
 	Body            string `json:"body"`
+	// Skip is set (and Body empty) for an enabled channel the member cannot
+	// receive, e.g. "not eligible: no SMS consent". Only resolveAll returns these.
+	Skip string `json:"-"`
 }
 
 // resolver turns an audience member into their messages. It is pure, so the
@@ -55,6 +58,13 @@ func (r *resolver) channels() Content {
 }
 
 func (r *resolver) resolve(m segmentation.Member) []Message {
+	out, _ := r.resolveAll(m)
+	return out
+}
+
+// resolveAll also returns the member's skipped channels: enabled for the
+// campaign but without the member's consent.
+func (r *resolver) resolveAll(m segmentation.Member) (out, skipped []Message) {
 	want := ContentLanguage(m.Language)
 	draft, variant := r.base, 0
 	if n := len(r.variants); n > 0 {
@@ -85,18 +95,29 @@ func (r *resolver) resolve(m segmentation.Member) []Message {
 	}
 	ch := r.channels()
 	base := Message{CustomerID: m.ID, FirstName: m.FirstName, VariantPosition: variant, GroupPosition: group, Language: lang, Source: source}
-	var out []Message
-	if m.SMSConsent && ch.SMSEnabled {
+	if ch.SMSEnabled {
 		msg := base
-		msg.Channel, msg.Body = "sms", Render(v.SMSBody, m.FirstName)
-		out = append(out, msg)
+		msg.Channel = "sms"
+		if m.SMSConsent {
+			msg.Body = Render(v.SMSBody, m.FirstName)
+			out = append(out, msg)
+		} else {
+			msg.Skip = "not eligible: no SMS consent"
+			skipped = append(skipped, msg)
+		}
 	}
-	if m.EmailConsent && ch.EmailEnabled {
+	if ch.EmailEnabled {
 		msg := base
-		msg.Channel, msg.Subject, msg.Body = "email", Render(v.EmailSubject, m.FirstName), Render(v.EmailBody, m.FirstName)
-		out = append(out, msg)
+		msg.Channel = "email"
+		if m.EmailConsent {
+			msg.Subject, msg.Body = Render(v.EmailSubject, m.FirstName), Render(v.EmailBody, m.FirstName)
+			out = append(out, msg)
+		} else {
+			msg.Skip = "not eligible: no email consent"
+			skipped = append(skipped, msg)
+		}
 	}
-	return out
+	return out, skipped
 }
 
 // Plan summarizes who receives what, computed by resolving every reachable

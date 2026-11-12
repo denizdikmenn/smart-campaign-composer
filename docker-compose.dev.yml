@@ -8,6 +8,19 @@ services:
     volumes:
       - ./backend:/app
 
+  worker:
+    image: composer-backend-dev
+    build:
+      context: ./backend
+      target: dev
+    entrypoint: !reset null
+    # Own tmp dir so it does not share air's build output with the API.
+    command: ["air", "--tmp_dir", "/tmp/air-worker", "--build.cmd", "go build -o /tmp/worker ./cmd/worker", "--build.entrypoint", "/tmp/worker", "--build.include_ext", "go"]
+    healthcheck:
+      test: ["CMD", "/tmp/worker", "-healthcheck"]
+    volumes:
+      - ./backend:/app
+
   frontend:
     image: composer-frontend-dev
     build:

@@ -23,10 +23,15 @@ type Review struct {
 
 // Review runs the consistency gate for the current configuration. version
 // is the Standard draft to approve (ignored when an A/B test is active).
+// For an approved campaign it returns the recipient plan of the approved
+// content instead (what Send would queue now).
 func (s *Service) Review(ctx context.Context, id int64, version int) (Review, error) {
 	v, err := s.Get(ctx, id)
 	if err != nil {
 		return Review{}, err
+	}
+	if v.Campaign.Status == "approved" {
+		return s.approvedReview(ctx, v) // the pre-send summary
 	}
 	return s.review(ctx, v, version)
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { FIRST_NAME, MAX_SMS, MAX_SUBJECT, personalizedLength, type Issue } from '../api'
 
 /**
@@ -27,6 +27,14 @@ const words = computed(() => body.value.trim().split(/\s+/).filter(Boolean).leng
 
 const fieldIssues = (field: string) => props.issues.filter((i) => i.field === field)
 const bodyField = computed(() => (props.channel === 'sms' ? 'sms_body' : 'email_body'))
+
+// While streaming, keep the newest text in view.
+const bodyEl = ref<HTMLTextAreaElement | null>(null)
+watch(body, async () => {
+  if (!props.streaming) return
+  await nextTick()
+  if (bodyEl.value) bodyEl.value.scrollTop = bodyEl.value.scrollHeight
+})
 </script>
 
 <template>
@@ -39,6 +47,7 @@ const bodyField = computed(() => (props.channel === 'sms' ? 'sms_body' : 'email_
         class="field"
         type="text"
         :readonly="readonly"
+        :placeholder="streaming ? 'Waiting for Claude…' : undefined"
         :aria-invalid="fieldIssues('email_subject').some((i) => i.blocking)"
         aria-describedby="email-subject-count"
       />
@@ -54,10 +63,13 @@ const bodyField = computed(() => (props.channel === 'sms' ? 'sms_body' : 'email_
     <label class="label" :for="`${channel}-body`">{{ channel === 'sms' ? 'SMS message' : 'Email body' }}</label>
     <textarea
       :id="`${channel}-body`"
+      ref="bodyEl"
       v-model="body"
       class="field"
       :rows="channel === 'sms' ? 4 : 12"
       :readonly="readonly"
+      :placeholder="streaming ? 'Waiting for Claude…' : undefined"
+      :aria-busy="streaming || undefined"
       :aria-invalid="fieldIssues(bodyField).some((i) => i.blocking)"
       :aria-describedby="`${channel}-body-count`"
     />
@@ -102,8 +114,23 @@ const bodyField = computed(() => (props.channel === 'sms' ? 'sms_body' : 'email_
 .field[aria-invalid='true'] {
   border-color: var(--danger);
 }
+/* Being written: soft breathing glow; empty fields shimmer until text arrives. */
 .streaming .field {
-  border-style: dashed;
+  border-color: #b9cc86;
+  background: var(--surface);
+  animation: writing 1.8s ease-in-out infinite;
+}
+.streaming .field:placeholder-shown {
+  background: linear-gradient(90deg, var(--surface-muted) 25%, var(--selected-surface) 50%, var(--surface-muted) 75%);
+  background-size: 200% 100%;
+  animation:
+    writing 1.8s ease-in-out infinite,
+    shimmer 1.4s linear infinite;
+}
+@keyframes writing {
+  50% {
+    box-shadow: 0 0 0 4px rgb(221 232 181 / 0.6);
+  }
 }
 .count,
 .hint {

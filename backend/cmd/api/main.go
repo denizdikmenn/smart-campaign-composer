@@ -80,9 +80,11 @@ func run(log *slog.Logger) error {
 	}
 	seg := segmentation.NewService(pool, gen, log)
 
+	camp := content.NewService(pool, writer, seg, log).WithLifetime(ctx)
+	del := &deliveryHandler{log: log, pool: pool, src: approvedMessages(camp)}
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           newHandler(log, pool, customers.NewStore(pool), seg, content.NewService(pool, writer, seg, log).WithLifetime(ctx)),
+		Handler:           newHandler(log, pool, customers.NewStore(pool), seg, camp, del),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -132,7 +134,7 @@ func setupDatabase(ctx context.Context, log *slog.Logger, pool *pgxpool.Pool) er
 	return nil
 }
 
-func newHandler(log *slog.Logger, db pinger, cs customerStore, seg suggester, camp campaignService) http.Handler {
+func newHandler(log *slog.Logger, db pinger, cs customerStore, seg suggester, camp campaignService, del *deliveryHandler) http.Handler {
 	mux := http.NewServeMux()
 	ch := customerHandler{log: log, store: cs}
 	mux.HandleFunc("GET /api/customers/summary", ch.summary)
@@ -146,6 +148,9 @@ func newHandler(log *slog.Logger, db pinger, cs customerStore, seg suggester, ca
 	}
 	if camp != nil {
 		campaignHandler{log: log, svc: camp}.routes(mux)
+	}
+	if del != nil {
+		del.routes(mux)
 	}
 	// Admin routes (briefs and raw model output); kept under a separate prefix.
 	if rr, ok := seg.(runReader); ok {

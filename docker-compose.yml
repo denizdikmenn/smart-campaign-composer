@@ -26,6 +26,34 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-composer}:${POSTGRES_PASSWORD:-composer}@postgres:5432/${POSTGRES_DB:-composer}?sslmode=disable
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health >/dev/null || exit 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+      start_period: 5s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Delivery worker: same image and database, no HTTP port.
+  worker:
+    build: ./backend
+    entrypoint: ["worker"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-composer}:${POSTGRES_PASSWORD:-composer}@postgres:5432/${POSTGRES_DB:-composer}?sslmode=disable
+      DELIVERY_RATE_PER_SECOND: ${DELIVERY_RATE_PER_SECOND:-100}
+      DELIVERY_CONCURRENCY: ${DELIVERY_CONCURRENCY:-10}
+      MOCK_PROVIDER_FAULTS: ${MOCK_PROVIDER_FAULTS:-on}
+      MOCK_FAULT_SEED: ${MOCK_FAULT_SEED:-}
+      MOCK_FAULT_RATES: ${MOCK_FAULT_RATES:-}
+      MOCK_LATENCY_MS: ${MOCK_LATENCY_MS:-}
+    healthcheck:
+      test: ["CMD", "worker", "-healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -35,7 +63,8 @@ services:
     ports:
       - "${FRONTEND_PORT:-5173}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:

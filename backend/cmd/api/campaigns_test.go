@@ -40,7 +40,7 @@ func (f fakeCampaigns) Approve(context.Context, int64, int) (content.View, error
 
 func serve(f fakeCampaigns, method, path, body string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	h := newHandler(slog.New(slog.DiscardHandler), fakeDB{}, nil, nil, f)
+	h := newHandler(slog.New(slog.DiscardHandler), fakeDB{}, nil, nil, f, nil)
 	h.ServeHTTP(rec, httptest.NewRequest(method, path, strings.NewReader(body)))
 	return rec
 }

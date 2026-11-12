@@ -81,7 +81,7 @@ func TestGetCustomer(t *testing.T) {
 func getCustomers(t *testing.T, s *fakeStore, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	h := newHandler(slog.New(slog.DiscardHandler), fakeDB{}, s, nil, nil)
+	h := newHandler(slog.New(slog.DiscardHandler), fakeDB{}, s, nil, nil, nil)
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
 	return rec
 }

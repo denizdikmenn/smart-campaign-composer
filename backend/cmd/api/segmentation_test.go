@@ -24,7 +24,7 @@ func (fakeSuggester) Preview(context.Context, segmentation.Alternative, int) ([]
 func TestSuggestContract(t *testing.T) {
 	unsupported := segmentation.Response{Outcome: segmentation.OutcomeUnsupported, Message: "No subscription data.",
 		Unsupported: []string{"subscriptions"}, Questions: []string{}, Suggestions: []string{}, Alternatives: []segmentation.Result{}, Warnings: []string{}}
-	h := newHandler(slog.New(slog.DiscardHandler), fakeDB{}, nil, fakeSuggester{unsupported}, nil)
+	h := newHandler(slog.New(slog.DiscardHandler), fakeDB{}, nil, fakeSuggester{unsupported}, nil, nil)
 
 	post := func(body string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()

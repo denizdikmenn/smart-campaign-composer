@@ -1,8 +1,10 @@
-// Package delivery holds the delivery-record contract shared by the
-// (upcoming) delivery pipeline and campaign monitoring. Each record carries
-// the resolved content and its origin (variant, behavioral group, language,
-// content source), assigned once when the record is created; retries only
-// change status and attempts, so monitoring breakdowns stay accurate.
+// Package delivery sends approved campaigns. The API creates delivery jobs
+// (Dispatch) in PostgreSQL, which doubles as the queue; the worker process
+// claims due jobs, sends them through a rate-limited mock provider and
+// records the outcome, retrying temporary failures (Worker). Each record
+// carries the resolved content and its origin (variant, behavioral group,
+// language, content source), assigned once at dispatch; retries only change
+// status and attempts, so monitoring breakdowns stay accurate.
 package delivery
 
 import (

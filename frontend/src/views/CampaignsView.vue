@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { fetchSummary, type Summary } from '../api'
-import { href } from '../router'
+import { onActivated, onMounted, ref } from 'vue'
+import { fetchSummary, listCampaigns, type CampaignSummary, type Summary } from '../api'
+import { deliveryHref, href } from '../router'
 
 const number = new Intl.NumberFormat('en-US')
 const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0)
@@ -14,6 +14,25 @@ onMounted(async () => {
     summary.value = null // stats are context only; the page works without them
   }
 })
+
+// Recent campaigns; refreshed whenever the page is shown again (KeepAlive).
+const campaigns = ref<CampaignSummary[]>([])
+async function loadCampaigns() {
+  try {
+    campaigns.value = await listCampaigns()
+  } catch {
+    // the list is a convenience; starting a campaign still works
+  }
+}
+onActivated(loadCampaigns) // also runs on first mount
+const STATUS: Record<CampaignSummary['delivery_status'], { label: string; tone: string }> = {
+  not_sent: { label: 'Approved · not sent', tone: '' },
+  queued: { label: 'Queued', tone: 'accent' },
+  sending: { label: 'Sending', tone: 'accent' },
+  completed: { label: 'Sent', tone: 'ok' },
+  completed_with_failures: { label: 'Sent with failures', tone: 'bad' },
+}
+const date = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { dateStyle: 'medium' })
 
 // The guide can be hidden; remembered per browser only (a convenience).
 const GUIDE_KEY = 'campaigns.guideHidden'
@@ -38,7 +57,8 @@ const STEPS = [
   { title: 'Describe', text: 'Write who you want to reach and why, in plain language.', ready: true },
   { title: 'Compare audiences', text: 'Get 2–3 audience options with real customer and channel counts.', ready: true },
   { title: 'Write messages', text: 'Claude drafts SMS and email copy with personalization; edit or regenerate.', ready: true },
-  { title: 'Review & approve', text: 'Preview for real recipients and approve. Sending comes later.', ready: true },
+  { title: 'Review & approve', text: 'Preview for real recipients and approve. Nothing is sent yet.', ready: true },
+  { title: 'Send & monitor', text: 'Send when ready and watch delivery, retries and failures live.', ready: true },
 ]
 </script>
 
@@ -68,7 +88,29 @@ const STEPS = [
       <a class="explore" :href="href('/explorer')">Explore customers →</a>
     </dl>
 
-    <div class="empty">
+    <section v-if="campaigns.length" class="recent" aria-labelledby="recent-title">
+      <h2 id="recent-title">Recent campaigns</h2>
+      <ul>
+        <li v-for="c in campaigns" :key="c.id">
+          <component :is="c.status === 'approved' ? 'a' : 'div'" class="row" :href="c.status === 'approved' ? deliveryHref(c.id) : undefined">
+            <span class="what">
+              <strong>{{ c.audience || 'Campaign' }}</strong>
+              <span class="brief">{{ c.brief }}</span>
+            </span>
+            <span class="meta">
+              <span v-if="c.dispatched_at" class="count">{{ number.format(c.sent) }} / {{ number.format(c.messages) }} sent</span>
+              <span class="chip" :class="c.status === 'approved' ? STATUS[c.delivery_status].tone : ''">
+                {{ c.status === 'approved' ? STATUS[c.delivery_status].label : 'Draft' }}
+              </span>
+              <span class="muted">{{ date(c.created_at) }}</span>
+            </span>
+          </component>
+        </li>
+      </ul>
+      <p class="muted">Approved campaigns open their delivery page. Resuming drafts isn't available yet.</p>
+    </section>
+
+    <div v-else class="empty">
       <svg class="art" viewBox="0 0 64 64" aria-hidden="true">
         <path d="M32 58V30" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none" />
         <path d="M32 34c0-12 9-20 22-20 0 13-9 20-22 20Z" fill="var(--accent-soft)" stroke="currentColor" stroke-width="2.5" />
@@ -80,7 +122,6 @@ const STEPS = [
         reach shown separately.
       </p>
       <a class="primary" :href="href('/campaigns/new')">Start a campaign</a>
-      <p class="note">Campaigns are saved once you pick an audience, but listing and resuming them isn't available yet.</p>
     </div>
 
     <section v-if="!guideHidden" class="guide" aria-labelledby="guide-title">
@@ -121,6 +162,58 @@ const STEPS = [
 </template>
 
 <style scoped>
+.recent {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.recent h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.recent ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recent .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+.recent a.row:hover {
+  border-color: var(--accent);
+}
+.recent .what {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 280px;
+}
+.recent .brief {
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent .meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
 .head {
   display: flex;
   align-items: flex-start;
