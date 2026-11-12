@@ -290,3 +290,10 @@ CREATE INDEX IF NOT EXISTS delivery_attempts_delivery_idx ON delivery_attempts (
 ALTER TABLE campaign_groups ADD COLUMN IF NOT EXISTS angle text NOT NULL DEFAULT '';
 ALTER TABLE campaign_groups ADD COLUMN IF NOT EXISTS rationale text NOT NULL DEFAULT '';
 ALTER TABLE campaign_groups ADD COLUMN IF NOT EXISTS differentiated boolean;
+
+-- Scheduled delivery: a send time (UTC) set on an approved campaign. The
+-- worker dispatches the campaign when it is due; dispatching clears it.
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS scheduled_for timestamptz;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS schedule_error text;
+CREATE INDEX IF NOT EXISTS campaigns_due_idx ON campaigns (scheduled_for)
+    WHERE dispatched_at IS NULL AND scheduled_for IS NOT NULL;

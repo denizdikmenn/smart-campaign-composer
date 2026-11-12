@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
+  cancelSchedule,
   getDelivery,
   retryFailed,
   reviewCampaign,
+  scheduleCampaign,
   sendCampaign,
   type CampaignView,
   type DeliveryCounts,
@@ -12,6 +14,7 @@ import {
   type Review,
 } from '../api'
 import AiProgress from './AiProgress.vue'
+import DateTimePicker from './DateTimePicker.vue'
 import DeliveryMessages from './DeliveryMessages.vue'
 import LangChip from './LangChip.vue'
 
@@ -36,6 +39,20 @@ const retryNote = ref('')
 const retrying = ref(false)
 
 const notSent = computed(() => report.value?.status === 'not_sent')
+const scheduled = computed(() => report.value?.status === 'scheduled')
+const preSend = computed(() => notSent.value || scheduled.value)
+
+// Send now, or later at a chosen local time (stored and sent to the API as UTC).
+const mode = ref<'now' | 'later'>('now')
+const whenLocal = ref('') // datetime-local value, in the browser's time zone
+const pad = (n: number) => String(n).padStart(2, '0')
+const localValue = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+const minWhen = computed(() => localValue(new Date(Date.now() + 2 * 60_000)))
+const chosenAt = computed(() => (whenLocal.value ? new Date(whenLocal.value) : null))
+const whenValid = computed(() => !!chosenAt.value && chosenAt.value.getTime() >= Date.now() + 60_000)
+const stamp = (iso: string | Date) => new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+const cancelling = ref(false)
 const finished = computed(() => report.value?.status === 'completed' || report.value?.status === 'completed_with_failures')
 
 // --- polling -------------------------------------------------------------------------
@@ -61,7 +78,7 @@ async function poll() {
   await refresh()
   // Keep polling while messages are pending (and retry after a failed request).
   if (!stopped && (error.value || (report.value && !notSent.value && !finished.value))) {
-    timer = setTimeout(() => void poll(), 1000)
+    timer = setTimeout(() => void poll(), scheduled.value && !error.value ? 5000 : 1000)
   }
 }
 
@@ -75,7 +92,7 @@ async function loadPlan() {
 
 onMounted(async () => {
   await poll()
-  if (notSent.value) await loadPlan()
+  if (preSend.value) await loadPlan()
 })
 onUnmounted(() => {
   stopped = true
@@ -94,6 +111,36 @@ async function send() {
     error.value = e instanceof Error ? e.message : 'Could not start sending'
   } finally {
     sending.value = false
+  }
+}
+
+async function schedule() {
+  const at = chosenAt.value
+  if (!at) return
+  confirming.value = false
+  sending.value = true
+  error.value = ''
+  try {
+    report.value = await scheduleCampaign(campaign.value.id, at)
+    void poll()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Could not schedule the campaign'
+  } finally {
+    sending.value = false
+  }
+}
+
+async function unschedule() {
+  cancelling.value = true
+  error.value = ''
+  try {
+    report.value = await cancelSchedule(campaign.value.id)
+    mode.value = 'later'
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Could not cancel the schedule'
+    void poll() // sending may have just started
+  } finally {
+    cancelling.value = false
   }
 }
 
@@ -132,6 +179,7 @@ const groupLabel = (pos: number) => props.view.groups.find((g) => g.position ===
 
 const STATUS: Record<DeliveryReport['status'], { label: string; tone: string }> = {
   not_sent: { label: 'Not sent', tone: '' },
+  scheduled: { label: 'Scheduled', tone: 'accent' },
   queued: { label: 'Queued', tone: 'accent' },
   sending: { label: 'Sending', tone: 'accent' },
   completed: { label: 'Completed', tone: 'ok' },
@@ -153,7 +201,7 @@ const buckets = computed(() => {
 // The heartbeat is written every 5s; quiet for longer while work is pending means no worker is running.
 const workerStale = computed(() => {
   const r = report.value
-  if (!r || finished.value || notSent.value) return false
+  if (!r || finished.value || preSend.value) return false
   return !r.worker_seen_at || Date.now() - new Date(r.worker_seen_at).getTime() > 20_000
 })
 const errorLabel = { retrying: 'Retrying', failed: 'Failed', skipped: 'Skipped' }
@@ -174,9 +222,9 @@ const tiles = computed(() => {
 <template>
   <section class="panel delivery" aria-labelledby="delivery-title">
     <header>
-      <h2 id="delivery-title">{{ notSent ? 'Send campaign' : 'Delivery' }}</h2>
+      <h2 id="delivery-title">{{ preSend ? 'Send campaign' : 'Delivery' }}</h2>
       <span v-if="report" class="chip" :class="STATUS[report.status].tone" role="status">
-        <span v-if="!finished && !notSent" class="spinner" aria-hidden="true" />
+        <span v-if="!finished && !preSend" class="spinner" aria-hidden="true" />
         {{ STATUS[report.status].label }}
       </span>
     </header>
@@ -187,7 +235,7 @@ const tiles = computed(() => {
     </div>
 
     <!-- Before sending: what Send will queue now -->
-    <template v-if="notSent">
+    <template v-if="preSend">
       <AiProgress v-if="!plan && !error" kind="task" title="Counting recipients" detail="Rechecking consent and channels for everyone in the audience." compact />
       <template v-if="plan">
         <div class="summary">
@@ -227,18 +275,48 @@ const tiles = computed(() => {
             </tr>
           </tbody>
         </table>
-        <div class="send">
-          <p v-if="!confirming" class="muted">
-            Counts are rechecked against current consent when you send. Messages go out in the background; you can leave this page.
+        <div v-if="scheduled && report" class="send">
+          <p>
+            <strong>Scheduled for {{ stamp(report.scheduled_for!) }}</strong> <span class="muted">({{ zone }})</span>
           </p>
-          <p v-else><strong>Send {{ number.format(plan.messages) }} messages now?</strong> This can't be undone.</p>
+          <p v-if="report.schedule_error" class="box warn" role="alert">
+            Couldn't start at the scheduled time: {{ report.schedule_error }} Cancel the schedule to choose another time.
+          </p>
+          <p v-else class="muted">
+            Messages are queued when the time arrives, with consent rechecked then. You can cancel until sending starts.
+          </p>
+          <div class="actions">
+            <button type="button" class="btn" :disabled="cancelling" :aria-busy="cancelling" @click="unschedule">
+              {{ cancelling ? 'Cancelling' : 'Cancel schedule' }}
+            </button>
+          </div>
+        </div>
+        <div v-else class="send">
+          <div class="modes" role="radiogroup" aria-label="When to send">
+            <label><input v-model="mode" type="radio" value="now" :disabled="confirming" /> Send now</label>
+            <label><input v-model="mode" type="radio" value="later" :disabled="confirming" /> Schedule for later</label>
+          </div>
+          <label v-if="mode === 'later'" class="when">
+            <span class="muted">Send at ({{ zone }})</span>
+            <DateTimePicker v-model="whenLocal" :min="minWhen" :disabled="confirming" label="Send date and time" />
+          </label>
+          <p v-if="whenLocal && !whenValid && !confirming" class="muted" role="status">Pick a time at least a minute from now.</p>
+          <p v-if="confirming && mode === 'later' && chosenAt">
+            <strong>Schedule {{ number.format(plan.messages) }} messages for {{ stamp(chosenAt) }}?</strong> You can cancel until sending starts.
+          </p>
+          <p v-else-if="confirming"><strong>Send {{ number.format(plan.messages) }} messages now?</strong> This can't be undone.</p>
+          <p v-else class="muted">
+            Counts are rechecked against current consent when messages are queued. Messages go out in the background; you can leave this page.
+          </p>
           <div class="actions">
             <template v-if="confirming">
               <button type="button" class="btn" @click="confirming = false">Cancel</button>
-              <button type="button" class="btn primary" :disabled="sending" :aria-busy="sending" @click="send">{{ sending ? 'Queuing messages' : 'Confirm and send' }}</button>
+              <button type="button" class="btn primary" :disabled="sending" :aria-busy="sending" @click="mode === 'later' ? schedule() : send()">
+                {{ sending ? (mode === 'later' ? 'Scheduling' : 'Queuing messages') : mode === 'later' ? 'Confirm schedule' : 'Confirm and send' }}
+              </button>
             </template>
-            <button v-else type="button" class="btn primary" :disabled="sending || !plan.messages" @click="confirming = true">
-              Send campaign
+            <button v-else type="button" class="btn primary" :disabled="sending || !plan.messages || (mode === 'later' && !whenValid)" @click="confirming = true">
+              {{ mode === 'later' ? 'Schedule campaign' : 'Send campaign' }}
             </button>
           </div>
         </div>
@@ -394,6 +472,24 @@ const tiles = computed(() => {
 .actions {
   display: flex;
   gap: 8px;
+}
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  flex-basis: 100%;
+}
+.modes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.when {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-basis: 100%;
 }
 .progress {
   height: 8px;

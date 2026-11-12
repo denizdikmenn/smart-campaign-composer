@@ -18,8 +18,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/smart-campaign-composer/backend/internal/content"
 	"github.com/smart-campaign-composer/backend/internal/db"
 	"github.com/smart-campaign-composer/backend/internal/delivery"
+	"github.com/smart-campaign-composer/backend/internal/segmentation"
 )
 
 func main() {
@@ -81,7 +83,11 @@ func run(log *slog.Logger) error {
 			RetryAfter: 2 * time.Second, Faults: faults, Recipients: recipients}
 	}
 	log.Info("delivery worker started", "rate_per_channel", cfg.Rate, "concurrency", cfg.Concurrency, "faults", faults != nil, "fault_rates", rates, "fault_seed", seed, "latency", fmt.Sprintf("%v-%v", minLat, maxLat))
-	delivery.NewWorker(pool, providers, cfg, log).Run(ctx)
+	// Scheduled campaigns are resolved at send time like "send now"; the
+	// message resolver never calls the generators, so mocks are enough here.
+	seg := segmentation.NewService(pool, segmentation.Mock{}, log)
+	src := delivery.ContentSource(content.NewService(pool, content.Mock{}, seg, log))
+	delivery.NewWorker(pool, providers, cfg, log).WithSource(src).Run(ctx)
 	log.Info("delivery worker stopped")
 	return nil
 }

@@ -58,17 +58,20 @@ type ErrorCount struct {
 
 // Report is a campaign's delivery state, read entirely from PostgreSQL.
 type Report struct {
-	CampaignID   int64             `json:"campaign_id"`
-	Status       string            `json:"status"` // not_sent | queued | sending | completed | completed_with_failures
-	DispatchedAt *time.Time        `json:"dispatched_at"`
-	FinishedAt   *time.Time        `json:"finished_at"`
-	Totals       Counts            `json:"totals"`
-	Channels     map[string]Counts `json:"channels"`
-	Variants     []BucketCounts    `json:"variants"`
-	Groups       []BucketCounts    `json:"groups"`
-	Errors       []ErrorCount      `json:"errors"`
-	NextRetryAt  *time.Time        `json:"next_retry_at"`
-	WorkerSeenAt *time.Time        `json:"worker_seen_at"`
+	CampaignID   int64      `json:"campaign_id"`
+	Status       string     `json:"status"` // not_sent | scheduled | queued | sending | completed | completed_with_failures
+	DispatchedAt *time.Time `json:"dispatched_at"`
+	// ScheduledFor (UTC) is set while a send is scheduled and not yet started.
+	ScheduledFor  *time.Time        `json:"scheduled_for"`
+	ScheduleError *string           `json:"schedule_error"`
+	FinishedAt    *time.Time        `json:"finished_at"`
+	Totals        Counts            `json:"totals"`
+	Channels      map[string]Counts `json:"channels"`
+	Variants      []BucketCounts    `json:"variants"`
+	Groups        []BucketCounts    `json:"groups"`
+	Errors        []ErrorCount      `json:"errors"`
+	NextRetryAt   *time.Time        `json:"next_retry_at"`
+	WorkerSeenAt  *time.Time        `json:"worker_seen_at"`
 	// RetryableFailed are failed deliveries a marketer can retry (not permanent rejections).
 	RetryableFailed int `json:"retryable_failed"`
 }
@@ -94,12 +97,12 @@ func CampaignReport(ctx context.Context, pool *pgxpool.Pool, campaignID int64) (
 	defer cancel()
 	r := Report{CampaignID: campaignID, Channels: map[string]Counts{}, Variants: []BucketCounts{}, Groups: []BucketCounts{}, Errors: []ErrorCount{}}
 	var lastUpdate *time.Time
-	err := pool.QueryRow(ctx, `SELECT c.dispatched_at,
+	err := pool.QueryRow(ctx, `SELECT c.dispatched_at, c.scheduled_for, c.schedule_error,
 			(SELECT max(updated_at) FROM deliveries WHERE campaign_id = c.id),
 			(SELECT min(next_attempt_at) FROM deliveries WHERE campaign_id = c.id AND status = 'retrying'),
 			(SELECT max(seen_at) FROM worker_heartbeats),
 			(SELECT count(*) FROM deliveries WHERE campaign_id = c.id AND status = 'failed' AND NOT permanent)
-		FROM campaigns c WHERE c.id = $1`, campaignID).Scan(&r.DispatchedAt, &lastUpdate, &r.NextRetryAt, &r.WorkerSeenAt, &r.RetryableFailed)
+		FROM campaigns c WHERE c.id = $1`, campaignID).Scan(&r.DispatchedAt, &r.ScheduledFor, &r.ScheduleError, &lastUpdate, &r.NextRetryAt, &r.WorkerSeenAt, &r.RetryableFailed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, ErrNotFound
 	}
@@ -132,6 +135,13 @@ func CampaignReport(ctx context.Context, pool *pgxpool.Pool, campaignID int64) (
 	}
 	r.Variants, r.Groups = sorted(variants), sorted(groups)
 	r.Status = status(r.DispatchedAt != nil, r.Totals)
+	if r.ScheduledFor != nil {
+		u := r.ScheduledFor.UTC()
+		r.ScheduledFor = &u
+		if r.Status == "not_sent" {
+			r.Status = "scheduled"
+		}
+	}
 	if r.Status == "completed" || r.Status == "completed_with_failures" {
 		r.FinishedAt = lastUpdate
 	}
@@ -217,6 +227,7 @@ type CampaignSummary struct {
 	Audience       string     `json:"audience"`
 	Status         string     `json:"status"` // draft | approved
 	DispatchedAt   *time.Time `json:"dispatched_at"`
+	ScheduledFor   *time.Time `json:"scheduled_for"`
 	DeliveryStatus string     `json:"delivery_status"`
 	Messages       int        `json:"messages"`
 	Sent           int        `json:"sent"`
@@ -227,7 +238,7 @@ type CampaignSummary struct {
 func RecentCampaigns(ctx context.Context, pool *pgxpool.Pool, limit int) ([]CampaignSummary, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	rows, err := pool.Query(ctx, `SELECT c.id, c.created_at, c.brief, COALESCE(c.audience->>'name', ''), c.status, c.dispatched_at,
+	rows, err := pool.Query(ctx, `SELECT c.id, c.created_at, c.brief, COALESCE(c.audience->>'name', ''), c.status, c.dispatched_at, c.scheduled_for,
 			count(d.id), count(d.id) FILTER (WHERE d.status = 'queued'), count(d.id) FILTER (WHERE d.status IN ('sending', 'retrying')),
 			count(d.id) FILTER (WHERE d.status = 'sent'), count(d.id) FILTER (WHERE d.status = 'failed'),
 			COALESCE(sum(GREATEST(d.attempts - 1, 0)), 0)
@@ -240,11 +251,18 @@ func RecentCampaigns(ctx context.Context, pool *pgxpool.Pool, limit int) ([]Camp
 		var s CampaignSummary
 		var c Counts
 		var active int
-		err := row.Scan(&s.ID, &s.CreatedAt, &s.Brief, &s.Audience, &s.Status, &s.DispatchedAt,
+		err := row.Scan(&s.ID, &s.CreatedAt, &s.Brief, &s.Audience, &s.Status, &s.DispatchedAt, &s.ScheduledFor,
 			&c.Total, &c.Queued, &active, &c.Sent, &c.Failed, &c.Retries)
 		c.Sending = active // only the pending total matters for the status
 		s.Messages, s.Sent, s.Failed = c.Total, c.Sent, c.Failed
 		s.DeliveryStatus = status(s.DispatchedAt != nil, c)
+		if s.ScheduledFor != nil {
+			u := s.ScheduledFor.UTC()
+			s.ScheduledFor = &u
+			if s.DeliveryStatus == "not_sent" {
+				s.DeliveryStatus = "scheduled"
+			}
+		}
 		return s, err
 	})
 }

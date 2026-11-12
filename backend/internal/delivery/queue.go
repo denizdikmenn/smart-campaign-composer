@@ -43,6 +43,16 @@ const insertChunk = 1000
 // dispatched is left as is (created = 0). Jobs carry their final text, so
 // nothing that happens to drafts later can change what is sent.
 func Dispatch(ctx context.Context, pool *pgxpool.Pool, campaignID int64, src MessageSource) (created int, err error) {
+	return dispatch(ctx, pool, campaignID, src, false)
+}
+
+// DispatchDue is Dispatch for the scheduler: it only acts if the campaign's
+// schedule is still set and due (a cancelled schedule dispatches nothing).
+func DispatchDue(ctx context.Context, pool *pgxpool.Pool, campaignID int64, src MessageSource) (created int, err error) {
+	return dispatch(ctx, pool, campaignID, src, true)
+}
+
+func dispatch(ctx context.Context, pool *pgxpool.Pool, campaignID int64, src MessageSource, requireDue bool) (created int, err error) {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	tx, err := pool.Begin(ctx)
@@ -52,8 +62,9 @@ func Dispatch(ctx context.Context, pool *pgxpool.Pool, campaignID int64, src Mes
 	defer tx.Rollback(ctx)
 
 	var status string
-	var dispatched bool
-	err = tx.QueryRow(ctx, `SELECT status, dispatched_at IS NOT NULL FROM campaigns WHERE id = $1 FOR UPDATE`, campaignID).Scan(&status, &dispatched)
+	var dispatched, due bool
+	err = tx.QueryRow(ctx, `SELECT status, dispatched_at IS NOT NULL, COALESCE(scheduled_for <= now(), false)
+		FROM campaigns WHERE id = $1 FOR UPDATE`, campaignID).Scan(&status, &dispatched, &due)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return 0, ErrNotFound
@@ -63,6 +74,8 @@ func Dispatch(ctx context.Context, pool *pgxpool.Pool, campaignID int64, src Mes
 		return 0, ErrNotApproved
 	case dispatched:
 		return 0, nil // idempotent: never recreate or restart a batch
+	case requireDue && !due:
+		return 0, nil // schedule cancelled or not reached yet
 	}
 
 	var msgs []Message
@@ -86,7 +99,7 @@ func Dispatch(ctx context.Context, pool *pgxpool.Pool, campaignID int64, src Mes
 		}
 		created += n
 	}
-	if _, err := tx.Exec(ctx, `UPDATE campaigns SET dispatched_at = now(), updated_at = now() WHERE id = $1`, campaignID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE campaigns SET dispatched_at = now(), scheduled_for = NULL, schedule_error = NULL, updated_at = now() WHERE id = $1`, campaignID); err != nil {
 		return 0, err
 	}
 	return created, tx.Commit(ctx)

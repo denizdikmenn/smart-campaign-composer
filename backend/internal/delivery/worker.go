@@ -34,7 +34,11 @@ type Worker struct {
 	providers map[string]Provider
 	cfg       Config
 	log       *slog.Logger
+	source    MessageSource // resolves scheduled campaigns; nil disables the scheduler
 }
+
+// WithSource enables dispatching of scheduled campaigns by this worker.
+func (w *Worker) WithSource(src MessageSource) *Worker { w.source = src; return w }
 
 func NewWorker(pool *pgxpool.Pool, providers map[string]Provider, cfg Config, log *slog.Logger) *Worker {
 	return &Worker{pool: pool, providers: providers, cfg: cfg, log: log}
@@ -50,6 +54,13 @@ func (w *Worker) Run(ctx context.Context) {
 		go func() {
 			defer wg.Done()
 			w.runChannel(ctx, channel, p, newLimiter(w.cfg.Rate, time.Second))
+		}()
+	}
+	if w.source != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			w.runScheduler(ctx)
 		}()
 	}
 	w.heartbeat()

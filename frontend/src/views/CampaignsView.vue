@@ -27,11 +27,13 @@ async function loadCampaigns() {
 onActivated(loadCampaigns) // also runs on first mount
 const STATUS: Record<CampaignSummary['delivery_status'], { label: string; tone: string }> = {
   not_sent: { label: 'Approved · not sent', tone: '' },
+  scheduled: { label: 'Scheduled', tone: 'accent' },
   queued: { label: 'Queued', tone: 'accent' },
   sending: { label: 'Sending', tone: 'accent' },
   completed: { label: 'Sent', tone: 'ok' },
   completed_with_failures: { label: 'Sent with failures', tone: 'bad' },
 }
+const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
 const date = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { dateStyle: 'medium' })
 
 // The guide can be hidden; remembered per browser only (a convenience).
@@ -98,6 +100,7 @@ const STEPS = [
               <span class="brief">{{ c.brief }}</span>
             </span>
             <span class="meta">
+              <span v-if="c.scheduled_for && !c.dispatched_at" class="count">{{ when(c.scheduled_for) }}</span>
               <span v-if="c.dispatched_at" class="count">{{ number.format(c.sent) }} / {{ number.format(c.messages) }} sent</span>
               <span class="chip" :class="c.status === 'approved' ? STATUS[c.delivery_status].tone : ''">
                 {{ c.status === 'approved' ? STATUS[c.delivery_status].label : 'Draft' }}

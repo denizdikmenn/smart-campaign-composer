@@ -1,10 +1,10 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -23,6 +23,8 @@ type deliveryHandler struct {
 func (h *deliveryHandler) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/campaigns", h.list)
 	mux.HandleFunc("POST /api/campaigns/{id}/send", h.send)
+	mux.HandleFunc("POST /api/campaigns/{id}/schedule", h.schedule)
+	mux.HandleFunc("DELETE /api/campaigns/{id}/schedule", h.unschedule)
 	mux.HandleFunc("GET /api/campaigns/{id}/delivery", h.report)
 	mux.HandleFunc("GET /api/campaigns/{id}/messages", h.messages)
 	mux.HandleFunc("GET /api/campaigns/{id}/messages/{mid}", h.message)
@@ -112,16 +114,7 @@ func (h *deliveryHandler) retry(w http.ResponseWriter, r *http.Request) {
 
 // approvedMessages adapts the content service's resolver to the delivery queue.
 func approvedMessages(svc *content.Service) delivery.MessageSource {
-	return func(ctx context.Context, id int64, fn func(delivery.Message) error) error {
-		err := svc.ApprovedMessages(ctx, id, func(m content.Message) error {
-			return fn(delivery.Message{CustomerID: m.CustomerID, Channel: m.Channel, VariantPosition: m.VariantPosition,
-				GroupPosition: m.GroupPosition, Language: m.Language, Source: m.Source, Subject: m.Subject, Body: m.Body, Skip: m.Skip})
-		})
-		if errors.Is(err, content.ErrNotApproved) {
-			return delivery.ErrNotApproved
-		}
-		return err
-	}
+	return delivery.ContentSource(svc)
 }
 
 // POST /api/campaigns/{id}/send: creates the delivery jobs once and returns
@@ -138,6 +131,44 @@ func (h *deliveryHandler) send(w http.ResponseWriter, r *http.Request) {
 	}
 	if created > 0 {
 		h.log.Info("campaign dispatched", "campaign", id, "jobs", created)
+	}
+	h.report(w, r)
+}
+
+// POST /api/campaigns/{id}/schedule {"send_at": RFC3339}: schedules the send
+// (stored in UTC); the worker dispatches it when due.
+func (h *deliveryHandler) schedule(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(w, r, "id")
+	if !ok {
+		return
+	}
+	var body struct {
+		SendAt time.Time `json:"send_at"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if body.SendAt.IsZero() {
+		writeError(w, http.StatusBadRequest, "send_at is required (RFC 3339)")
+		return
+	}
+	if err := delivery.Schedule(r.Context(), h.pool, id, body.SendAt); err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	h.log.Info("campaign scheduled", "campaign", id, "send_at", body.SendAt.UTC())
+	h.report(w, r)
+}
+
+// DELETE /api/campaigns/{id}/schedule: cancels a schedule that has not started.
+func (h *deliveryHandler) unschedule(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathInt(w, r, "id")
+	if !ok {
+		return
+	}
+	if err := delivery.CancelSchedule(r.Context(), h.pool, id); err != nil {
+		h.fail(w, r, err)
+		return
 	}
 	h.report(w, r)
 }
@@ -187,7 +218,9 @@ func (h *deliveryHandler) fail(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, delivery.ErrNotFound), errors.Is(err, content.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found")
-	case errors.Is(err, delivery.ErrNotApproved), errors.Is(err, delivery.ErrNoRecipients):
+	case errors.Is(err, delivery.ErrPastSchedule):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, delivery.ErrNotApproved), errors.Is(err, delivery.ErrNoRecipients), errors.Is(err, delivery.ErrAlreadySent):
 		writeError(w, http.StatusConflict, err.Error())
 	default:
 		h.log.Error("delivery request failed", "error", err)

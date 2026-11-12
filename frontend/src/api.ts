@@ -664,7 +664,7 @@ export function approveCampaign(id: number, version: number) {
 
 // --- delivery ----------------------------------------------------------------------
 
-export type DeliveryStatus = 'not_sent' | 'queued' | 'sending' | 'completed' | 'completed_with_failures'
+export type DeliveryStatus = 'not_sent' | 'scheduled' | 'queued' | 'sending' | 'completed' | 'completed_with_failures'
 
 /** Delivery records by status; retries are attempts beyond the first. */
 export interface DeliveryCounts {
@@ -687,6 +687,10 @@ export interface DeliveryReport {
   campaign_id: number
   status: DeliveryStatus
   dispatched_at: string | null
+  /** UTC send time while a send is scheduled and not yet started. */
+  scheduled_for: string | null
+  /** Why a due scheduled send could not start (it is not retried). */
+  schedule_error: string | null
   finished_at: string | null
   totals: DeliveryCounts
   channels: Record<string, DeliveryCounts>
@@ -760,6 +764,7 @@ export interface CampaignSummary {
   audience: string
   status: 'draft' | 'approved'
   dispatched_at: string | null
+  scheduled_for: string | null
   delivery_status: DeliveryStatus
   messages: number
   sent: number
@@ -769,6 +774,16 @@ export interface CampaignSummary {
 /** Queues the approved campaign's messages once; repeating it changes nothing. */
 export function sendCampaign(id: number) {
   return send<DeliveryReport>('POST', `/api/campaigns/${id}/send`, undefined)
+}
+
+/** Schedules the send for a later instant (sent as UTC); the worker starts it when due. */
+export function scheduleCampaign(id: number, at: Date) {
+  return send<DeliveryReport>('POST', `/api/campaigns/${id}/schedule`, { send_at: at.toISOString() })
+}
+
+/** Cancels a schedule; fails (409) once sending has started. */
+export function cancelSchedule(id: number) {
+  return send<DeliveryReport>('DELETE', `/api/campaigns/${id}/schedule`, undefined)
 }
 
 export function getDelivery(id: number, signal?: AbortSignal) {

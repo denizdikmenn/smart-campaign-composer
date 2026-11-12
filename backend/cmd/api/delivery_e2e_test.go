@@ -68,6 +68,18 @@ func TestDeliveryEndToEnd(t *testing.T) {
 		t.Fatalf("approve: %d", code)
 	}
 	var rep delivery.Report
+	// Scheduling: rejected in the past, "scheduled" with a UTC time, cancellable.
+	past := time.Now().Add(-time.Hour).Format(time.RFC3339)
+	if code := call("POST", path+"/schedule", `{"send_at": "`+past+`"}`, nil); code != http.StatusBadRequest {
+		t.Fatalf("past schedule: %d", code)
+	}
+	later := time.Now().Add(time.Hour).Format(time.RFC3339)
+	if code := call("POST", path+"/schedule", `{"send_at": "`+later+`"}`, &rep); code != http.StatusAccepted || rep.Status != "scheduled" || rep.ScheduledFor == nil || rep.ScheduledFor.Location() != time.UTC {
+		t.Fatalf("schedule: %d %+v", code, rep)
+	}
+	if code := call("DELETE", path+"/schedule", ``, &rep); code != http.StatusOK || rep.Status != "not_sent" {
+		t.Fatalf("cancel schedule: %d %+v", code, rep)
+	}
 	// 10 email + 5 SMS to send; the 5 audience members without SMS consent are recorded as skipped.
 	if code := call("POST", path+"/send", ``, &rep); code != http.StatusAccepted || rep.Status != "queued" || rep.Totals.Total != 20 || rep.Totals.Skipped != 5 {
 		t.Fatalf("send: %d %+v", code, rep)
