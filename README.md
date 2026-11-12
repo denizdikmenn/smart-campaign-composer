@@ -1,5 +1,7 @@
 # Smart Campaign Composer
 
+> New here, or not technical? Start with the [product overview](PRODUCT.md).
+
 An AI-powered campaign composer (case study). Marketers describe a campaign in natural language, Claude
 proposes audience rules and SMS/email copy, a human approves, and the campaign is sent through mock providers. All customer data is
 synthetic and no real messages are sent.

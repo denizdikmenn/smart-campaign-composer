@@ -1,0 +1,1603 @@
+
+⏺ The New campaign page now has a progress indicator at the top. I haven't
+  looked at it in a browser; the typecheck and build pass and the running dev
+  server compiles all three changed files.
+
+  The four stages come from DESIGN.md, and together they cover the six steps in
+  REQUIREMENTS.md:
+
+  ┌───────────┬───────────────────────────────────┬────────────────────────┐
+  │   Stage   │              Covers               │         State          │
+  ├───────────┼───────────────────────────────────┼────────────────────────┤
+  │ 1         │ Brief, AI suggestions, choosing   │ In progress, with live │
+  │ Audience  │ an audience                       │  status                │
+  ├───────────┼───────────────────────────────────┼────────────────────────┤
+  │ 2 Content │ SMS and email drafts              │ Lock icon and "Coming  │
+  │           │                                   │ soon"                  │
+  ├───────────┼───────────────────────────────────┼────────────────────────┤
+  │ 3 Review  │ Preview and approval              │ Lock icon and "Coming  │
+  │           │                                   │ soon"                  │
+  ├───────────┼───────────────────────────────────┼────────────────────────┤
+  │ 4         │ Sending and monitoring            │ Lock icon and "Coming  │
+  │ Delivery  │                                   │ soon"                  │
+  └───────────┴───────────────────────────────────┴────────────────────────┘
+
+  How it moves: a progress line runs along the four stages and fills smoothly as
+  you work through the Audience stage. A short status under the current stage
+  follows along:
+
+  ┌─────────────────────────┬────────────────────────────────────┬──────────┐
+  │         You've…         │            Status shown            │  Line    │
+  │                         │                                    │   fill   │
+  ├─────────────────────────┼────────────────────────────────────┼──────────┤
+  │ Not generated yet       │ Describe your campaign             │ 15%      │
+  ├─────────────────────────┼────────────────────────────────────┼──────────┤
+  │ Got audience options    │ Compare options                    │ 50%      │
+  ├─────────────────────────┼────────────────────────────────────┼──────────┤
+  │ Picked one              │ Confirm your choice                │ 75%      │
+  ├─────────────────────────┼────────────────────────────────────┼──────────┤
+  │ Clicked "Use this       │ Audience set (stage 1 gets a check │ 100%     │
+  │ audience"               │  mark)                             │          │
+  └─────────────────────────┴────────────────────────────────────┴──────────┘
+
+  If you regenerate, it drops back to "Compare options". A brief that only gets
+  a clarifying question, or no usable audience, stays at "Describe".
+
+  Look and behaviour:
+  - Position: the bar stays at the top of the screen as you scroll, on the
+    frosted background DESIGN.md allows for top bars.
+  - Stage circles: the current stage has a pistachio circle that pulses once. A
+    finished stage turns solid forest green with a check mark.
+  - Narrow screens: it shrinks to one line ("Step 1 of 4 · Audience · Compare
+    options") above the progress line and circles.
+  - Accessibility:
+    - It's marked up as a progress list with the current stage flagged.
+    - Screen readers hear "(completed)", "(current: Compare options)" or "(not
+      available yet)".
+    - Locked stages can't be clicked, as DESIGN.md requires for anything not
+      built yet.
+  - Header: the old "Step 1 of 4 · Audience" text is gone, since the indicator
+    now shows that.
+
+  The changes are in StepIndicator.vue
+  (frontend/src/components/StepIndicator.vue), NewCampaignView.vue
+  (frontend/src/views/NewCampaignView.vue), and BriefComposer.vue
+  (frontend/src/components/BriefComposer.vue), which now tells the page when
+  results arrive.
+
+❯ Improve loading, processing, and locked states across the entire application.
+  Currently, many interactions rely on plain text like "Loading..." or
+  "Generating...", making it difficult to understand what's happening or even
+  recognize that an operation is in progress. Introduce modern, visually
+  appealing, animated states with stronger visual hierarchy, meaningful
+  progress indicators, and clear feedback for each stage. Make locked,
+  disabled, completed, and failed states immediately recognizable while
+  preserving our existing design language and avoiding unnecessary complexity.
+
+  for instance claude generating draft ones
+  ⎿  Referenced file src/api.ts
+  ⎿  Read src/views/NewCampaignView.vue (256 lines)
+  ⎿  Read src/App.vue (131 lines)
+  ⎿  Read src/router.ts (40 lines)
+  ⎿  Read ../backend/cmd/api/customers_test.go (178 lines)
+  ⎿  Plan file referenced (~/.claude/plans/pasted-content-id-f5a4-read-docs-requ
+     ir-declarative-crab.md)
+
+⏺ Compacted using a summary written while you were away · turn off with
+  "idleCompaction": false in settings.json
+
+  Searched for 1 pattern, read 1 file, listed 1 directory, ran 2 shell commands (ctrl+o to expand)
+
+⏺ I'm checking how loading works in each screen first. Then I'll add one shared
+  animated progress component and some shared busy/locked/failed styles, and
+  swap out the plain-text states.
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+⏺ Next I'm building the shared progress component and the global busy, locked,
+  done and failed styles.
+
+⏺ Write(src/components/AiProgress.vue)
+  ⎿  Wrote 383 lines to src/components/AiProgress.vue
+       1 <script setup lang="ts">
+       2 import { computed, onMounted, onUnmounted, ref } from 'vue'
+       3
+       4 /**
+       5  * Shared "work in progress" card: animated orb, title, optional
+          stage list
+       6  * (done / current / upcoming), a progress bar and elapsed time.
+       7  * `progress` (0..1) gives a determinate bar; omit it for an ind
+         eterminate one.
+       8  * Only the title line is live, so stage changes don't flood scr
+     … +376 lines (~8 KB) (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Update(src/components/AiProgress.vue)
+  ⎿  Added 7 lines
+      369      left: 100%;
+      370    }
+      371  }
+      372 +@media (prefers-reduced-motion: reduce) {                     
+      373 +  .bar.indeterminate span {                                   
+      374 +    left: 0;                                                  
+      375 +    width: 100%;                                              
+      376 +    opacity: 0.35;                                            
+      377 +  }                                                           
+      378 +}                                                             
+      379  @media (max-width: 560px) {
+      380    .ai-progress {
+      381      grid-template-columns: auto minmax(0, 1fr);
+
+⏺ Update(src/style.css)
+  ⎿  Added 186 lines
+      204      transform: rotate(360deg);
+      205    }
+      206  }
+      207 +                                                              
+      208 +.sr-only {                                                    
+      209 +  position: absolute;                                         
+      210 +  width: 1px;                                                 
+      211 +  height: 1px;                                                
+      212 +  padding: 0;                                                 
+      213 +  margin: -1px;                                               
+      214 +  overflow: hidden;                                           
+      215 +  clip: rect(0 0 0 0);                                        
+      216 +  white-space: nowrap;                                        
+      217 +  border: 0;                                                  
+      218 +}                                                             
+      219 +                                                              
+      220 +/* ---- Interaction states -----------------------------------
+          +-------------------------                                     
+      221 + * Busy:     <button aria-busy="true"> gets an inline spinner 
+          +and stays legible                                             
+      222 + *           (a running action must not look like a disabled o
+          +ne).                                                          
+      223 + * State:    <span class="state saving|saved|locked|failed|liv
+          +e">: icon + label badges.                                     
+      224 + * Skeleton: .skeleton / .skeleton-line shimmer placeholders. 
+      225 + */                                                           
+      226 +button[aria-busy='true'],                                     
+      227 +.btn[aria-busy='true'] {                                      
+      228 +  position: relative;                                         
+      229 +  cursor: progress !important;                                
+      230 +  opacity: 1 !important;                                      
+      231 +}                                                             
+      232 +button[aria-busy='true']::before {                            
+      233 +  content: '';                                                
+      234 +  display: inline-block;                                      
+      235 +  width: 12px;                                                
+      236 +  height: 12px;                                               
+      237 +  margin-right: 8px;                                          
+      238 +  vertical-align: -2px;                                       
+      239 +  border: 2px solid currentColor;                             
+      240 +  border-right-color: transparent;                            
+      241 +  border-radius: 50%;                                         
+      242 +  animation: spin 0.7s linear infinite;                       
+      243 +}                                                             
+      244 +                                                              
+      245 +.state {                                                      
+      246 +  display: inline-flex;                                       
+      247 +  align-items: center;                                        
+      248 +  gap: 6px;                                                   
+      249 +  padding: 3px 10px 3px 8px;                                  
+      250 +  font-size: 12px;                                            
+      251 +  font-weight: 600;                                           
+      252 +  line-height: 1.4;                                           
+      253 +  white-space: nowrap;                                        
+      254 +  border-radius: 99px;                                        
+      255 +  color: var(--text-muted);                                   
+      256 +  background: var(--surface-muted);                           
+      257 +  border: 1px solid var(--border);                            
+      258 +  transition:                                                 
+      259 +    color 0.2s,                                               
+      260 +    background-color 0.2s;                                    
+      261 +}                                                             
+      262 +.state::before {                                              
+      263 +  content: '';                                                
+      264 +  flex: none;                                                 
+      265 +  width: 12px;                                                
+      266 +  height: 12px;                                               
+      267 +  background: currentColor;                                   
+      268 +  mask: var(--icon) center / contain no-repeat;               
+      269 +}                                                             
+      270 +.state.saving::before,                                        
+      271 +.state.busy::before {                                         
+      272 +  background: none;                                           
+      273 +  mask: none;                                                 
+      274 +  border: 2px solid currentColor;                             
+      275 +  border-right-color: transparent;                            
+      276 +  border-radius: 50%;                                         
+      277 +  animation: spin 0.7s linear infinite;                       
+      278 +}                                                             
+      279 +.state.saved,                                                 
+      280 +.state.done {                                                 
+      281 +  color: var(--success);                                      
+      282 +  background: var(--success-soft);                            
+      283 +  border-color: transparent;                                  
+      284 +  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
+          +org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-
+          +7' fill='none' stroke='black' stroke-width='2.2' stroke-lineca
+          +p='round' stroke-linejoin='round'/%3E%3C/svg%3E");            
+      285 +}                                                             
+      286 +.state.locked {                                               
+      287 +  color: var(--accent);                                       
+      288 +  background: var(--selected-surface);                        
+      289 +  border-color: #cfdcb4;                                      
+      290 +  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
+          +org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='7' width=
+          +'10' height='7.5' rx='1.6'/%3E%3Cpath d='M5.2 7V5a2.8 2.8 0 0 
+          +1 5.6 0v2' fill='none' stroke='black' stroke-width='1.8'/%3E%3
+          +C/svg%3E");                                                   
+      291 +}                                                             
+      292 +.state.failed {                                               
+      293 +  color: var(--danger);                                       
+      294 +  background: var(--danger-soft);                             
+      295 +  border-color: transparent;                                  
+      296 +  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
+          +org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r=
+          +'7'/%3E%3Cpath d='M8 4.3v4.4M8 11.2v.4' stroke='white' stroke-
+          +width='1.9' stroke-linecap='round'/%3E%3C/svg%3E");           
+      297 +}                                                             
+      298 +.state.dirty {                                                
+      299 +  color: #8a5a00;                                             
+      300 +  background: #fff4dc;                                        
+      301 +  border-color: transparent;                                  
+      302 +  --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.
+          +org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r=
+          +'4'/%3E%3C/svg%3E");                                          
+      303 +}                                                             
+      304 +.state.live {                                                 
+      305 +  color: var(--accent);                                       
+      306 +  background: var(--accent-soft);                             
+      307 +  border-color: transparent;                                  
+      308 +}                                                             
+      309 +.state.live::before {                                         
+      310 +  width: 8px;                                                 
+      311 +  height: 8px;                                                
+      312 +  mask: none;                                                 
+      313 +  border-radius: 50%;                                         
+      314 +  box-shadow: 0 0 0 0 rgb(32 77 60 / 0.5);                    
+      315 +  animation: ping 1.4s ease-out infinite;                     
+      316 +}                                                             
+      317 +@keyframes ping {                                             
+      318 +  70% {                                                       
+      319 +    box-shadow: 0 0 0 6px rgb(32 77 60 / 0);                  
+      320 +  }                                                           
+      321 +  100% {                                                      
+      322 +    box-shadow: 0 0 0 0 rgb(32 77 60 / 0);                    
+      323 +  }                                                           
+      324 +}                                                             
+      325 +                                                              
+      326 +/* Status chips carry an icon, so success/failure isn't convey
+          +ed by colour alone. */                                        
+      327 +.chip.ok::before,                                             
+      328 +.chip.bad::before {                                           
+      329 +  margin-right: 4px;                                          
+      330 +  font-weight: 700;                                           
+      331 +}                                                             
+      332 +.chip.ok::before {                                            
+      333 +  content: '✓';                                               
+      334 +}                                                             
+      335 +.chip.bad::before {                                           
+      336 +  content: '!';                                               
+      337 +}                                                             
+      338 +                                                              
+      339 +.skeleton,                                                    
+      340 +.skeleton-line {                                              
+      341 +  border-radius: var(--radius-control);                       
+      342 +  background: linear-gradient(90deg, var(--surface-muted) 25%,
+          + var(--border) 50%, var(--surface-muted) 75%);                
+      343 +  background-size: 200% 100%;                                 
+      344 +  animation: shimmer 1.4s infinite linear;                    
+      345 +}                                                             
+      346 +.skeleton-line {                                              
+      347 +  height: 12px;                                               
+      348 +  margin: 8px 0;                                              
+      349 +  border-radius: 99px;                                        
+      350 +}                                                             
+      351 +.skeleton-line.short {                                        
+      352 +  width: 55%;                                                 
+      353 +}                                                             
+      354 +@keyframes shimmer {                                          
+      355 +  from {                                                      
+      356 +    background-position: 200% 0;                              
+      357 +  }                                                           
+      358 +  to {                                                        
+      359 +    background-position: -200% 0;                             
+      360 +  }                                                           
+      361 +}                                                             
+      362 +                                                              
+      363 +/* Failed operations: icon + message + action, shared by panel
+          +s. */                                                         
+      364 +.fail {                                                       
+      365 +  display: flex;                                              
+      366 +  align-items: center;                                        
+      367 +  gap: 12px;                                                  
+      368 +  padding: 12px 14px;                                         
+      369 +  color: var(--danger);                                       
+      370 +  background: var(--danger-soft);                             
+      371 +  border: 1px solid rgb(163 57 50 / 0.35);                    
+      372 +  border-radius: var(--radius-control);                       
+      373 +  animation: fail-in 0.35s ease-out;                          
+      374 +}                                                             
+      375 +.fail > .state.failed {                                       
+      376 +  padding: 0;                                                 
+      377 +  background: none;                                           
+      378 +}                                                             
+      379 +.fail .msg {                                                  
+      380 +  flex: 1;                                                    
+      381 +  margin: 0;                                                  
+      382 +}                                                             
+      383 +@keyframes fail-in {                                          
+      384 +  20%,                                                        
+      385 +  60% {                                                       
+      386 +    transform: translateX(-3px);                              
+      387 +  }                                                           
+      388 +  40%,                                                        
+      389 +  80% {                                                       
+      390 +    transform: translateX(3px);                               
+      391 +  }                                                           
+      392 +}                                                             
+
+⏺ Now I'm wiring it into Content Studio, starting with Claude writing a draft.
+
+⏺ Update(src/components/ContentStudio.vue)
+  ⎿  Added 30 lines
+       76  }))
+       77  const readonly = computed(() => approved.value || live.active)
+       78  
+       79 +// Fields stream in order (settings, SMS, subject, body, then 
+          +translations), so the                                         
+       80 +// furthest field received tells which stage Claude is on.    
+       81 +const liveStages = computed(() => {                           
+       82 +  const s = ['Choosing tone & settings', 'Writing SMS', 'Writi
+          +ng email subject', 'Writing email body']                      
+       83 +  if (languages.value.length > 1) s.push('Translating')       
+       84 +  return s                                                    
+       85 +})                                                            
+       86 +const liveStage = computed(() => {                            
+       87 +  if (live.localizing.length) return liveStages.value.length -
+          + 1                                                            
+       88 +  if (live.fields.email_body) return 3                        
+       89 +  if (live.fields.email_subject) return 2                     
+       90 +  if (live.fields.sms_body) return 1                          
+       91 +  return 0                                                    
+       92 +})                                                            
+       93 +const liveTitle = computed(() => {                            
+       94 +  const n = store.nextVersion.value                           
+       95 +  if (live.localizing.length) return `Translating Draft ${n}` 
+       96 +  return `Claude is writing Draft ${n}`                       
+       97 +})                                                            
+       98 +const liveDetail = computed(() =>                             
+       99 +  live.localizing.length                                      
+      100 +    ? `Into ${live.localizing.map(languageName).join(', ')}. T
+          +he base text is done.`                                        
+      101 +    : `${live.intent === 'candidate' ? 'An A/B candidate · ' :
+          + ''}${languageName(campaign.value.base_language)}${live.feedba
+          +ck ? ` · applying “${live.feedback}”` : ''}`,                 
+      102 +)                                                             
+      103 +// Follow the stream: show the channel being written.         
+      104 +watch(liveStage, (s) => {                                     
+      105 +  if (live.active && s >= 2 && s <= 3) channel.value = 'email'
+      106 +  else if (live.active && s === 1) channel.value = 'sms'      
+      107 +})                                                            
+      108 +                                                              
+      109  // --- drafts ------------------------------------------------
+           ----------------------------
+      110  const feedback = ref('')
+      111  async function regenerate() {
+
+⏺ Update(src/components/ContentStudio.vue)
+  ⎿  Added 6 lines, removed 6 lines
+      157          <span v-if="campaign.approved_version === d.version &&
+            !campaign.variants.length" class="tag ok">Approved</span>
+      158        </button>
+      159        <span v-if="live.active" role="tab" aria-selected="true"
+            class="draft-tab live">
+      160 -        Draft {{ store.nextVersion.value }} <span class="tag">
+          -{{ live.localizing.length ? 'translating…' : 'writing…' }}</sp
+          -an>                                                           
+      160 +        Draft {{ store.nextVersion.value }} <span class="state
+          + live">{{ live.localizing.length ? 'Translating' : 'Writing' }
+          +}</span>                                                      
+      161        </span>
+      162        <span class="save" role="status" aria-live="polite">
+      163 -        <template v-if="approved">Locked</template>           
+      164 -        <template v-else-if="store.saveState.value === 'saving
+          -'">Saving…</template>                                         
+      165 -        <template v-else-if="store.saveState.value === 'dirty'
+          -">Unsaved changes</template>                                  
+      166 -        <template v-else-if="store.saveState.value === 'error'
+          -"><span class="danger">Not saved: {{ store.saveError.value }}<
+          -/span></template>                                             
+      167 -        <template v-else-if="current">Saved</template>        
+      163 +        <span v-if="approved" class="state locked">Locked · ap
+          +proved</span>                                                 
+      164 +        <span v-else-if="store.saveState.value === 'saving'" c
+          +lass="state saving">Saving</span>                             
+      165 +        <span v-else-if="store.saveState.value === 'dirty'" cl
+          +ass="state dirty">Unsaved changes</span>                      
+      166 +        <span v-else-if="store.saveState.value === 'error'" cl
+          +ass="state failed" :title="store.saveError.value">Not saved: {
+          +{ store.saveError.value }}</span>                             
+      167 +        <span v-else-if="current" class="state saved">Saved</s
+          +pan>                                                          
+      168        </span>
+      169      </div>
+      170  
+
+⏺ Update(src/components/ContentStudio.vue)
+  ⎿  Added 2 lines, removed 2 lines
+      173          {{ ORIGIN_LABELS[current.origin] }}<template v-if="cur
+           rent.parent_version"> from Draft {{ current.parent_version }}<
+           /template>
+      174          <template v-if="current.feedback"> · “{{ current.feedb
+           ack }}”</template>
+      175        </span>
+      176 -      <button type="button" class="ghost small" :disabled="!!s
+          -tore.busy.value || live.active" @click="newDraft(0)">New blank
+          - draft</button>                                               
+      177 -      <button type="button" class="ghost small" :disabled="!!s
+          -tore.busy.value || live.active" @click="newDraft(current.versi
+          -on)">                                                         
+      176 +      <button type="button" class="ghost small" :disabled="!!s
+          +tore.busy.value || live.active" :aria-busy="store.busy.value =
+          +== 'Creating…'" @click="newDraft(0)">New blank draft</button> 
+      177 +      <button type="button" class="ghost small" :disabled="!!s
+          +tore.busy.value || live.active" :aria-busy="store.busy.value =
+          +== 'Duplicating…'" @click="newDraft(current.version)">        
+      178          Duplicate Draft {{ current.version }}
+      179        </button>
+      180        <label class="compare">
+
+⏺ Update(src/components/ContentStudio.vue)
+  ⎿  Added 23 lines, removed 14 lines
+      188        </label>
+      189      </div>
+      190  
+      191 -    <div v-if="live.error" class="alert" role="alert">        
+      192 -      <span>{{ live.error }}</span>                           
+      193 -      <button type="button" class="ghost" @click="store.genera
+          -te(live.from, live.intent, live.feedback)">Retry</button>     
+      191 +    <div v-if="live.error" class="fail" role="alert">         
+      192 +      <span class="state failed">{{ live.error.startsWith('Gen
+          +eration stopped') ? 'Stopped' : 'Generation failed' }}</span> 
+      193 +      <p class="msg">{{ live.error }}</p>                     
+      194 +      <button type="button" class="ghost" @click="store.genera
+          +te(live.from, live.intent, live.feedback)">                   
+      195 +        {{ live.error.startsWith('Generation stopped') ? 'Star
+          +t again' : 'Retry' }}                                         
+      196 +      </button>                                               
+      197      </div>
+      198      <p v-if="live.notice" class="notice" role="status">{{ live
+           .notice }}</p>
+      199  
+      197 -    <div v-if="!current && !live.active" class="empty" aria-bu
+          -sy="true">                                                    
+      198 -      <p v-if="live.error">No draft yet.</p>                  
+      199 -      <p v-else>Preparing your first draft…</p>               
+      200 +    <div v-if="!current && !live.active" class="empty">       
+      201 +      <template v-if="live.error">                            
+      202 +        <strong>No draft yet</strong>                         
+      203 +        <p>Retry above to have Claude write the first draft.</
+          +p>                                                            
+      204 +      </template>                                             
+      205 +      <AiProgress v-else title="Preparing your first draft" de
+          +tail="Saving your settings and connecting to Claude." />      
+      206      </div>
+      207  
+      208      <div v-else class="grid">
+      209        <div class="main">
+      204 -        <p v-if="showLive" class="streaming-note" role="status
+          -">                                                            
+      205 -          <template v-if="live.localizing.length">Translating 
+          -Draft {{ store.nextVersion.value }} into {{ live.localizing.ma
+          -p(languageName).join(', ') }}…</template>                     
+      206 -          <template v-else>                                   
+      207 -            Claude is writing Draft {{ store.nextVersion.value
+          - }}{{ live.intent === 'candidate' ? ' (an A/B candidate)' : ''
+          - }} in                                                        
+      208 -            {{ languageName(campaign.base_language) }}.       
+      209 -          </template>                                         
+      210 -          <button type="button" class="link" @click="store.sto
+          -pGeneration">Stop</button>                                    
+      211 -        </p>                                                  
+      210 +        <AiProgress                                           
+      211 +          v-if="showLive"                                     
+      212 +          :title="liveTitle"                                  
+      213 +          :detail="liveDetail"                                
+      214 +          :stages="liveStages"                                
+      215 +          :current="liveStage"                                
+      216 +          :progress="(liveStage + 0.5) / liveStages.length"   
+      217 +          compact                                             
+      218 +        >                                                     
+      219 +          <button type="button" class="ghost small" @click="st
+          +ore.stopGeneration">Stop</button>                             
+      220 +        </AiProgress>                                         
+      221  
+      222          <!-- Languages present in the audience -->
+      223          <div v-if="!showLive && languages.length > 1" class="l
+           angs" role="tablist" aria-label="Language">
+
+⏺ Update(src/components/ContentStudio.vue)
+  ⎿  Added 2 lines, removed 1 line
+      241              type="button"
+      242              class="ghost small"
+      243              :disabled="!!store.busy.value"
+      244 +            :aria-busy="store.busy.value === 'Translating…'"  
+      245              @click="updateTranslations"
+      246            >
+      246 -            {{ store.busy.value === 'Translating…' ? 'Translat
+          -ing…' : 'Update translations' }}                              
+      247 +            {{ store.busy.value === 'Translating…' ? 'Translat
+          +ing' : 'Update translations' }}                               
+      248            </button>
+      249          </div>
+      250          <p v-if="translationIssue && !showLive" class="note" :
+           class="{ danger: translationIssue.blocking }">{{ translationIs
+           sue.message }}</p>
+
+⏺ Update(src/components/ContentStudio.vue)
+  ⎿  Added 2 lines, removed 2 lines
+      326              </label>
+      327              <div class="regen">
+      328                <p>Creates Draft {{ store.nextVersion.value }}; 
+           Draft {{ current.version }} is kept.</p>
+      329 -              <button type="button" class="secondary" :disable
+          -d="live.active" @click="regenerate">                          
+      330 -                {{ live.active ? 'Writing…' : `Regenerate as D
+          -raft ${store.nextVersion.value}` }}                           
+      329 +              <button type="button" class="secondary" :disable
+          +d="live.active" :aria-busy="live.active" @click="regenerate"> 
+      330 +                {{ live.active ? `Writing Draft ${store.nextVe
+          +rsion.value}` : `Regenerate as Draft ${store.nextVersion.value
+          +}` }}                                                         
+      331                </button>
+      332              </div>
+      333            </template>
+
+⏺ Update(src/components/ContentStudio.vue)
+  ⎿  Added 1 line
+      2  import { computed, onMounted, ref, watch } from 'vue'
+      3  import { createDraft, languageName, localizeDraft, type Campaign
+         View, type Version } from '../api'
+      4  import { createCampaignStore, draftLabel, ORIGIN_LABELS, provide
+         Campaign, type Step, type StudioPhase } from '../campaign'
+      5 +import AiProgress from './AiProgress.vue'                       
+      6  import ChannelEditor from './ChannelEditor.vue'
+      7  import RecipientPreview from './RecipientPreview.vue'
+      8  import ReviewPanel from './ReviewPanel.vue'
+
+⏺ Update(src/components/ContentStudio.vue)
+  ⎿  Added 12 lines, removed 1 line
+      417    border-color: var(--accent);
+      418  }
+      419  .draft-tab.live {
+      420 -  border-style: dashed;                                       
+      420 +  color: var(--accent);                                       
+      421 +  border-color: transparent;                                  
+      422 +  background:                                                 
+      423 +    linear-gradient(var(--selected-surface), var(--selected-su
+          +rface)) padding-box,                                          
+      424 +    linear-gradient(90deg, #dde8b5, #204d3c, #dde8b5) border-b
+          +ox;                                                           
+      425 +  background-size: 100% 100%, 200% 100%;                      
+      426 +  animation: flow 1.6s linear infinite;                       
+      427  }
+      428 +@keyframes flow {                                             
+      429 +  to {                                                        
+      430 +    background-position: 0 0, -200% 0;                        
+      431 +  }                                                           
+      432 +}                                                             
+      433  .tag {
+      434    padding: 0 7px;
+      435    border-radius: 99px;
+⏺ Update(src/components/ContentStudio.vue)
+  ⎿  Added 10 lines
+      508    border-radius: var(--radius-control);
+      509  }
+      510  .empty {
+      511 +  display: grid;                                              
+      512 +  gap: 4px;                                                   
+      513    padding: 40px;
+      514    text-align: center;
+      515    color: var(--text-muted);
+      516    border: 1px dashed var(--border);
+      517    border-radius: var(--radius);
+      518  }
+      519 +.empty p {                                                    
+      520 +  margin: 0;                                                  
+      521 +}                                                             
+      522 +.empty:has(.ai-progress) {                                    
+      523 +  padding: 0;                                                 
+      524 +  text-align: left;                                           
+      525 +  border: 0;                                                  
+      526 +}                                                             
+      527  .grid {
+      528    display: grid;
+      529    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+
+⏺ Update(src/components/ContentStudio.vue)
+  ⎿  Removed 7 lines
+      580    display: flex;
+      581    justify-content: space-between;
+      582  }
+      583 -.streaming-note {                                             
+      584 -  margin: 0;                                                  
+      585 -  padding: 8px 12px;                                          
+      586 -  font-size: 13px;                                            
+      587 -  border-radius: var(--radius-control);                       
+      588 -  background: var(--selected-surface);                        
+      589 -}                                                             
+      583  .link {
+      584    margin-left: 6px;
+      585    padding: 0;
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Update(src/components/ChannelEditor.vue)
+  ⎿  Added 16 lines, removed 1 line
+      102  .field[aria-invalid='true'] {
+      103    border-color: var(--danger);
+      104  }
+      105 +/* Being written: soft breathing glow; empty fields shimmer un
+          +til text arrives. */                                          
+      106  .streaming .field {
+      106 -  border-style: dashed;                                       
+      107 +  border-color: #b9cc86;                                      
+      108 +  background: var(--surface);                                 
+      109 +  animation: writing 1.8s ease-in-out infinite;               
+      110  }
+      111 +.streaming .field:placeholder-shown {                         
+      112 +  background: linear-gradient(90deg, var(--surface-muted) 25%,
+          + var(--selected-surface) 50%, var(--surface-muted) 75%);      
+      113 +  background-size: 200% 100%;                                 
+      114 +  animation:                                                  
+      115 +    writing 1.8s ease-in-out infinite,                        
+      116 +    shimmer 1.4s linear infinite;                             
+      117 +}                                                             
+      118 +@keyframes writing {                                          
+      119 +  50% {                                                       
+      120 +    box-shadow: 0 0 0 4px rgb(221 232 181 / 0.6);             
+      121 +  }                                                           
+      122 +}                                                             
+      123  .count,
+      124  .hint {
+      125    margin: 0;
+
+⏺ Update(src/components/ChannelEditor.vue)
+  ⎿  Added 1 line
+      39          class="field"
+      40          type="text"
+      41          :readonly="readonly"
+      42 +        :placeholder="streaming ? 'Waiting for Claude…' : undef
+         +ined"                                                          
+      43          :aria-invalid="fieldIssues('email_subject').some((i) =>
+           i.blocking)"
+      44          aria-describedby="email-subject-count"
+      45        />
+
+⏺ Update(src/components/ChannelEditor.vue)
+  ⎿  Added 3 lines
+      55      <label class="label" :for="`${channel}-body`">{{ channel ==
+          = 'sms' ? 'SMS message' : 'Email body' }}</label>
+      56      <textarea
+      57        :id="`${channel}-body`"
+      58 +      ref="bodyEl"                                             
+      59        v-model="body"
+      60        class="field"
+      61        :rows="channel === 'sms' ? 4 : 12"
+      62        :readonly="readonly"
+      63 +      :placeholder="streaming ? 'Waiting for Claude…' : undefin
+         +ed"                                                            
+      64 +      :aria-busy="streaming || undefined"                      
+      65        :aria-invalid="fieldIssues(bodyField).some((i) => i.block
+          ing)"
+      66        :aria-describedby="`${channel}-body-count`"
+      67      />
+
+⏺ Update(src/components/ChannelEditor.vue)
+  ⎿  Added 1 line, removed 1 line
+      1  <script setup lang="ts">
+      2 -import { computed } from 'vue'                                  
+      2 +import { computed, nextTick, ref, watch } from 'vue'            
+      3  import { FIRST_NAME, MAX_SMS, MAX_SUBJECT, personalizedLength, t
+         ype Issue } from '../api'
+      4  
+      5  /**
+
+⏺ Update(src/components/ChannelEditor.vue)
+  ⎿  Added 8 lines
+      27  
+      28  const fieldIssues = (field: string) => props.issues.filter((i) 
+          => i.field === field)
+      29  const bodyField = computed(() => (props.channel === 'sms' ? 'sm
+          s_body' : 'email_body'))
+      30 +                                                               
+      31 +// While streaming, keep the newest text in view.              
+      32 +const bodyEl = ref<HTMLTextAreaElement | null>(null)           
+      33 +watch(body, async () => {                                      
+      34 +  if (!props.streaming) return                                 
+      35 +  await nextTick()                                             
+      36 +  if (bodyEl.value) bodyEl.value.scrollTop = bodyEl.value.scrol
+         +lHeight                                                        
+      37 +})                                                             
+      38  </script>
+      39  
+      40  <template>
+
+⏺ Next, the audience brief composer.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ Update(src/components/BriefComposer.vue)
+  ⎿  Added 12 lines, removed 4 lines
+      486  }
+      487  .alert {
+      488    display: flex;
+      489 -  justify-content: space-between;                             
+      489 +  align-items: flex-start;                                    
+      490    gap: 12px;
+      491 -  padding: 10px 14px;                                         
+      492 -  border: 1px solid var(--danger);                            
+      493 -  border-radius: 8px;                                         
+      491 +  padding: 12px 14px;                                         
+      492 +  border: 1px solid rgb(163 57 50 / 0.35);                    
+      493 +  border-radius: var(--radius-control);                       
+      494    color: var(--danger);
+      495 +  background: var(--danger-soft);                             
+      496  }
+      497 +.alert .state {                                               
+      498 +  padding: 0;                                                 
+      499 +  background: none;                                           
+      500 +}                                                             
+      501 +.alert .msg {                                                 
+      502 +  flex: 1;                                                    
+      503 +}                                                             
+      504  .alert ul,
+      505  .warnings {
+      506    margin: 4px 0 0;
+
+⏺ Update(src/components/BriefComposer.vue)
+  ⎿  Added 7 lines, removed 2 lines
+      515    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      516    gap: 16px;
+      517  }
+      518 +/* Previous results while regenerating: visibly out of date, n
+          +ot clickable. */                                              
+      519  .alts.stale {
+      519 -  opacity: 0.5;                                               
+      520 -  transition: opacity 0.2s;                                   
+      520 +  opacity: 0.45;                                              
+      521 +  filter: saturate(0.4) blur(1px);                            
+      522 +  pointer-events: none;                                       
+      523 +  transition:                                                 
+      524 +    opacity 0.25s,                                            
+      525 +    filter 0.25s;                                             
+      526  }
+      527  /* Card row: all options side by side when they fit (easy comp
+           arison);
+      528     otherwise a swipeable, snapping slider. */
+
+⏺ Now Review, Delivery, Groups, Individual and Experiment.
+
+  Searched for 1 pattern, ran 5 shell commands (ctrl+o to expand)
+
+⏺ Loading, locked, done and failed states now look and behave the same across
+  the app, and Claude writing a draft is the clearest case. The typecheck and
+  build pass and the running dev server compiles every changed file, but I
+  haven't looked at any of it in a browser.
+
+  One shared progress card (AiProgress.vue
+  (frontend/src/components/AiProgress.vue)) now replaces the plain "Loading…"
+  and "Generating…" lines. It shows:
+  - an animated orb: a sparkle when Claude is working, a plain spinner for
+    ordinary loading or counting;
+  - a title with animated dots and a one-line explanation;
+  - optional stage chips (spinning on the current step, a green check when
+    done);
+  - a progress bar that fills when the real fraction is known and slides back
+    and forth when it isn't;
+  - elapsed seconds, and a slot for Stop or Cancel.
+
+  Claude writing a draft
+  - The card shows real stages: Choosing tone & settings → Writing SMS → Writing
+    email subject → Writing email body → Translating (only when the audience
+    has more than one language). They come from the order in which the text
+    streams in, so they're not timed guesses. Stop is inside the card.
+  - The editor switches to the SMS or email tab as each one is being written,
+    and keeps the newest text in view. Empty fields shimmer with "Waiting for
+    Claude…" until text arrives.
+  - The live draft tab has a moving gradient border and a pulsing "Writing" or
+    "Translating" badge.
+  - The Regenerate button keeps a spinner and the text "Writing Draft N".
+  - If generation fails or is stopped, a red panel says so, with "Retry" or
+    "Start again".
+
+  Where else it appears
+
+  Area: Audience suggestions
+  Before: Rotating text line
+  Now: Card with three stages and Cancel; old results fade, blur and can't be
+    clicked while regenerating
+  ────────────────────────────────────────
+  Area: First draft
+  Before: "Preparing your first draft…"
+  Now: Card
+  ────────────────────────────────────────
+  Area: Review
+  Before: "Checking the campaign…"
+  Now: Card; re-checking shows a small badge
+  ────────────────────────────────────────
+  Area: Delivery
+  Before: "Loading…" and "Counting recipients…"
+  Now: Shimmer placeholders, then a counting card
+  ────────────────────────────────────────
+  Area: Groups
+  Before: "Writing group messages… 2 of 4"
+  Now: Card with one stage per group and a filling bar
+  ────────────────────────────────────────
+  Area: Individual messages
+  Before: Text and a thin bar
+  Now: Card with a filling bar, a recipient count and Stop; afterwards a
+  "Ready",
+    "Stopped" or "Done with N failed" badge
+  ────────────────────────────────────────
+  Area: A/B candidate
+  Before: Text line
+  Now: Small card with Stop
+  ────────────────────────────────────────
+  Area: Recipient preview, customer hover card, customer drawer, delivery
+  history
+  Before: "Loading…" or "…"
+  Now: Shimmer placeholders
+
+  Shared styles in style.css (frontend/src/style.css)
+  - Busy buttons: a running button shows a spinner and stays fully readable, so
+    it doesn't look disabled. Disabled buttons stay faded with a not-allowed
+    cursor.
+  - Status badges with an icon each: Saving, Saved, Unsaved changes, Locked,
+    Failed, Writing.
+  - Draft status: "Locked · approved", "Saving", "Unsaved changes", "Saved" and
+    "Not saved: …" are now badges.
+  - Review: shows "Locked" once approved.
+  - Group and sample results: chips now show ✓ or ! as well as colour.
+  - Errors: a shared red error panel with an icon and a short shake when it
+    appears.
+  - Placeholder shimmer and a hidden-text helper for screen readers.
+
+  Two things to know:
+  - Reduced motion: with reduced motion turned on, the sliding bar becomes a
+    still, faint full-width bar instead of disappearing.
+  - Stage list for audience suggestions: the server doesn't report its progress
+    here, so the stage list still moves on the same timer as before. Its bar
+    slides back and forth rather than claiming a percentage.
+
+  I also updated one loading line in DeliveryMessages.vue, a file that appeared
+  while I was working, so it uses the same placeholders.
+
+❯ Improve the review screen's message preview hierarchy. Currently, localized
+  versions are displayed as separate preview cards, making different languages
+  look like independent drafts or A/B variants. Instead, organize previews
+  primarily by variant and channel, with language selection nested inside each
+  preview using a simple dropdown or toggle. Switching languages should only
+  change the displayed localized content, not create another visual variant.
+  Keep the existing design language and make the distinction between campaign
+  variants, communication channels, and localized versions immediately clear.
+
+  Searched for 2 patterns, ran 5 shell commands (ctrl+o to expand)
+
+⏺ I'm grouping the review previews by variant, then channel, with a language
+  switch inside each card.
+
+⏺ Update(src/components/ReviewPanel.vue)
+  ⎿  Added 55 lines, removed 7 lines
+       87  const approvedAt = computed(() =>
+       88    campaign.value.approved_at ? new Date(campaign.value.approve
+           d_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle
+           : 'short' }) : '',
+       89  )
+       90 -const sampleLabel = (m: Review['plan']['samples'][number]) => 
+          -{                                                             
+       91 -  const parts = [m.channel === 'sms' ? 'SMS' : 'Email', langua
+          -geName(m.language)]                                           
+       92 -  if (m.variant_position) parts.unshift(`Variant ${'ABC'[m.var
+          -iant_position - 1]}`)                                         
+       93 -  const g = view.value.groups.find((x) => x.position === m.gro
+          -up_position)                                                  
+       94 -  if (g && m.group_position != null) parts.unshift(g.name)    
+       95 -  parts.push(sourceLabel[m.source] ?? m.source)               
+       96 -  return parts.join(' · ')                                    
+       90 +// Previews: variant/group -> channel -> language. The backend
+          + samples one message per                                      
+       91 +// variant/group × language × channel; languages are versions 
+          +of the same message, so                                       
+       92 +// they are a switch inside a channel card, never a card of th
+          +eir own.                                                      
+       93 +type Sample = ResolvedMessage                                 
+       94 +interface PreviewChannel {                                    
+       95 +  channel: 'sms' | 'email'                                    
+       96 +  byLang: Record<string, Sample>                              
+       97 +  langs: string[]                                             
+       98  }
+       99 +interface PreviewBucket {                                     
+      100 +  key: string                                                 
+      101 +  title: string                                               
+      102 +  kind: 'variant' | 'group' | 'single'                        
+      103 +  meta: string                                                
+      104 +  channels: PreviewChannel[]                                  
+      105 +}                                                             
+      106 +const langOrder = (l: string) => {                            
+      107 +  const i = campaign.value.languages.indexOf(l)               
+      108 +  return i < 0 ? 99 : i                                       
+      109 +}                                                             
+      110 +const previews = computed<PreviewBucket[]>(() => {            
+      111 +  const buckets = new Map<string, PreviewBucket>()            
+      112 +  for (const m of review.value?.plan.samples ?? []) {         
+      113 +    const group = m.group_position != null && m.group_position
+          + >= 0 ? view.value.groups.find((g) => g.position === m.group_p
+          +osition) : undefined                                          
+      114 +    const key = `${m.variant_position ?? 0}/${group ? group.po
+          +sition : '-'}`                                                
+      115 +    let b = buckets.get(key)                                  
+      116 +    if (!b) {                                                 
+      117 +      const variant = m.variant_position ? campaign.value.vari
+          +ants.find((v) => v.position === m.variant_position) : undefine
+          +d                                                             
+      118 +      b = variant                                             
+      119 +        ? { key, kind: 'variant', title: `Variant ${variant.la
+          +bel}`, meta: `Draft ${variant.draft_version}`, channels: [] } 
+      120 +        : group                                               
+      121 +          ? { key, kind: 'group', title: group.name, meta: 'Be
+          +havioral group', channels: [] }                               
+      122 +          : { key, kind: 'single', title: campaign.value.perso
+          +nalization === 'individual' ? 'Individual messages' : 'Single 
+          +message', meta: `Draft ${version.value}`, channels: [] }      
+      123 +      if (variant && group) b.meta += ` · ${group.name}`      
+      124 +      buckets.set(key, b)                                     
+      125 +    }                                                         
+      126 +    let ch = b.channels.find((c) => c.channel === m.channel)  
+      127 +    if (!ch) b.channels.push((ch = { channel: m.channel, byLan
+          +g: {}, langs: [] }))                                          
+      128 +    if (!ch.byLang[m.language]) {                             
+      129 +      ch.byLang[m.language] = m                               
+      130 +      ch.langs.push(m.language)                               
+      131 +      ch.langs.sort((a, b) => langOrder(a) - langOrder(b))    
+      132 +    }                                                         
+      133 +  }                                                           
+      134 +  const list = [...buckets.values()]                          
+      135 +  for (const b of list) b.channels.sort((a, c) => (a.channel =
+          +== 'sms' ? -1 : 1) - (c.channel === 'sms' ? -1 : 1))          
+      136 +  return list                                                 
+      137 +})                                                            
+      138 +// Language chosen per channel card; defaults to the base lang
+          +uage.                                                         
+      139 +const previewLang = ref<Record<string, string>>({})           
+      140 +const shownLang = (b: PreviewBucket, ch: PreviewChannel) => { 
+      141 +  const picked = previewLang.value[`${b.key}/${ch.channel}`]  
+      142 +  if (picked && ch.byLang[picked]) return picked              
+      143 +  return ch.byLang[campaign.value.base_language] ? campaign.va
+          +lue.base_language : ch.langs[0]!                              
+      144 +}                                                             
+      145 +const multiLang = computed(() => previews.value.some((b) => b.
+          +channels.some((c) => c.langs.length > 1)))                    
+      146  </script>
+      147  
+      148  <template>
+
+⏺ Update(src/components/ReviewPanel.vue)
+  ⎿  Added 1 line, removed 1 line
+      1  <script setup lang="ts">
+      2  import { computed, onMounted, onUnmounted, ref, watch } from 'vu
+         e'
+      3 -import { approveCampaign, CampaignError, formatTokens, formatUSD
+        -, languageName, reviewCampaign, type Issue, type Review } from '
+        -../api'                                                         
+      3 +import { approveCampaign, CampaignError, formatTokens, formatUSD
+        +, languageName, reviewCampaign, type Issue, type ResolvedMessage
+        +, type Review } from '../api'                                   
+      4  import { useCampaign } from '../campaign'
+      5  import { deliveryHref } from '../router'
+      6  import AiProgress from './AiProgress.vue'
+
+⏺ Update(src/components/ReviewPanel.vue)
+  ⎿  Added 52 lines, removed 8 lines
+      240        </div>
+      241  
+      242        <details class="samples" open>
+      243 -        <summary>Message previews ({{ review.plan.samples.leng
+          -th }})</summary>                                              
+      244 -        <ul>                                                  
+      245 -          <li v-for="m in review.plan.samples" :key="`${m.cust
+          -omer_id}-${m.channel}`" class="box">                          
+      246 -            <p class="muted">{{ sampleLabel(m) }} · to {{ m.fi
+          -rst_name }}</p>                                               
+      247 -            <p v-if="m.subject"><strong>{{ m.subject }}</stron
+          -g></p>                                                        
+      248 -            <p class="pre">{{ m.body }}</p>                   
+      249 -          </li>                                               
+      250 -        </ul>                                                 
+      243 +        <summary>                                             
+      244 +          Message previews                                    
+      245 +          <span class="muted">                                
+      246 +            · {{ previews.length }} {{ previews[0]?.kind === '
+          +variant' ? 'variant' : previews[0]?.kind === 'group' ? 'group'
+          + : 'message' }}{{ previews.length === 1 ? '' : 's' }}         
+      247 +            <template v-if="multiLang"> · each in {{ campaign.
+          +languages.length }} languages</template>                      
+      248 +          </span>                                             
+      249 +        </summary>                                            
+      250 +        <p v-if="!previews.length" class="muted">No previews: 
+          +nobody in the audience can be reached.</p>                    
+      251 +        <section v-for="b in previews" :key="b.key" class="buc
+          +ket" :class="b.kind" :aria-label="`${b.title} previews`">     
+      252 +          <header class="bucket-head">                        
+      253 +            <span v-if="b.kind === 'variant'" class="bucket-ba
+          +dge" aria-hidden="true">{{ b.title.slice(-1) }}</span>        
+      254 +            <h3>{{ b.title }}</h3>                            
+      255 +            <span class="muted">{{ b.meta }}</span>           
+      256 +          </header>                                           
+      257 +          <div class="channels">                              
+      258 +            <article v-for="ch in b.channels" :key="ch.channel
+          +" class="preview-card" :class="ch.channel">                   
+      259 +              <header>                                        
+      260 +                <span class="channel-name">                   
+      261 +                  <svg v-if="ch.channel === 'sms'" viewBox="0 
+          +0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-
+          +2.5h-2Z" /></svg>                                             
+      262 +                  <svg v-else viewBox="0 0 16 16" aria-hidden=
+          +"true"><rect x="2" y="3.5" width="12" height="9" rx="1.5" /><p
+          +ath d="M2.5 4.5 8 8.5l5.5-4" /></svg>                         
+      263 +                  {{ ch.channel === 'sms' ? 'SMS' : 'Email' }}
+      264 +                </span>                                       
+      265 +                <!-- Language: same message, localized. Switch
+          +ing changes text only. -->                                    
+      266 +                <div v-if="ch.langs.length > 1" class="langs" 
+          +role="radiogroup" :aria-label="`${b.title} ${ch.channel === 's
+          +ms' ? 'SMS' : 'email'} language`">                            
+      267 +                  <button                                     
+      268 +                    v-for="l in ch.langs"                     
+      269 +                    :key="l"                                  
+      270 +                    type="button"                             
+      271 +                    role="radio"                              
+      272 +                    :aria-checked="shownLang(b, ch) === l"    
+      273 +                    @click="previewLang[`${b.key}/${ch.channel
+          +}`] = l"                                                      
+      274 +                  >                                           
+      275 +                    {{ languageName(l) }}                     
+      276 +                  </button>                                   
+      277 +                </div>                                        
+      278 +                <span v-else class="lang-only">{{ languageName
+          +(ch.langs[0]!) }}</span>                                      
+      279 +              </header>                                       
+      280 +              <Transition name="swap" mode="out-in">          
+      281 +                <div :key="shownLang(b, ch)" class="message" :
+          +lang="shownLang(b, ch)">                                      
+      282 +                  <template v-if="ch.channel === 'email'">    
+      283 +                    <p class="subject">{{ ch.byLang[shownLang(
+          +b, ch)]!.subject || '—' }}</p>                                
+      284 +                    <p class="pre body">{{ ch.byLang[shownLang
+          +(b, ch)]!.body }}</p>                                         
+      285 +                  </template>                                 
+      286 +                  <p v-else class="pre bubble">{{ ch.byLang[sh
+          +ownLang(b, ch)]!.body }}</p>                                  
+      287 +                </div>                                        
+      288 +              </Transition>                                   
+      289 +              <p class="muted foot">                          
+      290 +                To {{ ch.byLang[shownLang(b, ch)]!.first_name 
+          +}} · {{ sourceLabel[ch.byLang[shownLang(b, ch)]!.source] ?? ch
+          +.byLang[shownLang(b, ch)]!.source }}                          
+      291 +              </p>                                            
+      292 +            </article>                                        
+      293 +          </div>                                              
+      294 +        </section>                                            
+      295        </details>
+      296  
+      297        <p class="muted sending">
+
+⏺ Update(src/components/ReviewPanel.vue)
+  ⎿  Added 138 lines, removed 8 lines
+      370    border-color: var(--danger);
+      371    background: var(--danger-soft);
+      372  }
+      373 -.samples ul {                                                 
+      373 +/* Previews: variant (outer) > channel (card) > language (swit
+          +ch inside the card). */                                       
+      374 +.samples {                                                    
+      375    display: grid;
+      375 -  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      376 +  gap: 12px;                                                  
+      377 +}                                                             
+      378 +.samples summary {                                            
+      379 +  font-weight: 600;                                           
+      380 +  cursor: pointer;                                            
+      381 +}                                                             
+      382 +.samples summary .muted {                                     
+      383 +  font-weight: 400;                                           
+      384 +}                                                             
+      385 +.bucket {                                                     
+      386 +  display: grid;                                              
+      387 +  gap: 10px;                                                  
+      388 +  padding: 14px;                                              
+      389 +  border: 1px solid var(--border);                            
+      390 +  border-radius: var(--radius);                               
+      391 +  background: var(--surface-muted);                           
+      392 +}                                                             
+      393 +.bucket.variant {                                             
+      394 +  border-left: 4px solid var(--accent);                       
+      395 +}                                                             
+      396 +.bucket-head {                                                
+      397 +  display: flex;                                              
+      398 +  flex-wrap: wrap;                                            
+      399 +  align-items: center;                                        
+      400    gap: 8px;
+      377 -  margin: 8px 0 0;                                            
+      378 -  padding: 0;                                                 
+      379 -  list-style: none;                                           
+      401  }
+      381 -.samples li {                                                 
+      402 +.bucket-badge {                                               
+      403    display: grid;
+      383 -  gap: 4px;                                                   
+      384 -  align-content: start;                                       
+      404 +  place-items: center;                                        
+      405 +  width: 24px;                                                
+      406 +  height: 24px;                                               
+      407 +  font-size: 12px;                                            
+      408 +  font-weight: 700;                                           
+      409 +  border-radius: 50%;                                         
+      410 +  color: #fff;                                                
+      411 +  background: var(--accent);                                  
+      412 +}                                                             
+      413 +.bucket-head h3 {                                             
+      414 +  font-size: 15px;                                            
+      415 +}                                                             
+      416 +.channels {                                                   
+      417 +  display: grid;                                              
+      418 +  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      419 +  gap: 10px;                                                  
+      420 +}                                                             
+      421 +.preview-card {                                               
+      422 +  display: grid;                                              
+      423 +  grid-template-rows: auto 1fr auto;                          
+      424 +  gap: 8px;                                                   
+      425 +  padding: 12px 14px;                                         
+      426    font-size: 13px;
+      427 +  border: 1px solid var(--border);                            
+      428 +  border-radius: var(--radius-control);                       
+      429 +  background: var(--surface);                                 
+      430  }
+      431 +.preview-card > header {                                      
+      432 +  display: flex;                                              
+      433 +  flex-wrap: wrap;                                            
+      434 +  align-items: center;                                        
+      435 +  justify-content: space-between;                             
+      436 +  gap: 8px;                                                   
+      437 +}                                                             
+      438 +.channel-name {                                               
+      439 +  display: inline-flex;                                       
+      440 +  align-items: center;                                        
+      441 +  gap: 6px;                                                   
+      442 +  font-size: 12px;                                            
+      443 +  font-weight: 600;                                           
+      444 +  letter-spacing: 0.04em;                                     
+      445 +  text-transform: uppercase;                                  
+      446 +  color: var(--text-muted);                                   
+      447 +}                                                             
+      448 +.channel-name svg {                                           
+      449 +  width: 16px;                                                
+      450 +  height: 16px;                                               
+      451 +  fill: none;                                                 
+      452 +  stroke: currentColor;                                       
+      453 +  stroke-width: 1.5;                                          
+      454 +  stroke-linejoin: round;                                     
+      455 +}                                                             
+      456 +/* Segmented language switch: reads as a setting of this card,
+          + not a new item. */                                           
+      457 +.langs {                                                      
+      458 +  display: inline-flex;                                       
+      459 +  padding: 2px;                                               
+      460 +  border-radius: 99px;                                        
+      461 +  background: var(--surface-muted);                           
+      462 +  border: 1px solid var(--border);                            
+      463 +}                                                             
+      464 +.langs button {                                               
+      465 +  padding: 3px 10px;                                          
+      466 +  font: inherit;                                              
+      467 +  font-size: 12px;                                            
+      468 +  font-weight: 500;                                           
+      469 +  border: 0;                                                  
+      470 +  border-radius: 99px;                                        
+      471 +  color: var(--text-muted);                                   
+      472 +  background: none;                                           
+      473 +  cursor: pointer;                                            
+      474 +  transition:                                                 
+      475 +    background-color 0.15s,                                   
+      476 +    color 0.15s;                                              
+      477 +}                                                             
+      478 +.langs button[aria-checked='true'] {                          
+      479 +  font-weight: 600;                                           
+      480 +  color: var(--accent);                                       
+      481 +  background: var(--accent-soft);                             
+      482 +}                                                             
+      483 +.lang-only {                                                  
+      484 +  font-size: 12px;                                            
+      485 +  color: var(--text-muted);                                   
+      486 +}                                                             
+      487 +.message {                                                    
+      488 +  display: grid;                                              
+      489 +  gap: 6px;                                                   
+      490 +  align-content: start;                                       
+      491 +}                                                             
+      492 +.subject {                                                    
+      493 +  font-weight: 600;                                           
+      494 +}                                                             
+      495 +.bubble {                                                     
+      496 +  justify-self: start;                                        
+      497 +  max-width: 100%;                                            
+      498 +  padding: 10px 12px;                                         
+      499 +  border-radius: 14px 14px 14px 4px;                          
+      500 +  background: var(--selected-surface);                        
+      501 +}                                                             
+      502 +.body {                                                       
+      503 +  padding-top: 6px;                                           
+      504 +  border-top: 1px solid var(--border);                        
+      505 +}                                                             
+      506 +.foot {                                                       
+      507 +  font-size: 12px;                                            
+      508 +}                                                             
+      509 +.swap-enter-active,                                           
+      510 +.swap-leave-active {                                          
+      511 +  transition: opacity 0.15s ease;                             
+      512 +}                                                             
+      513 +.swap-enter-from,                                             
+      514 +.swap-leave-to {                                              
+      515 +  opacity: 0;                                                 
+      516 +}                                                             
+      517  .approve {
+      518    position: sticky;
+      519    bottom: 16px;
+
+  Searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+⏺ On the review screen, translations no longer show up as separate preview
+  cards. Each message now has one card per channel, and you switch its language
+  inside the card. The typecheck and build pass and the dev server compiles the
+  file; I haven't looked at it in a browser.
+
+  How the previews are laid out now
+  1. Variant or group (outer box). Each A/B variant gets its own box, headed
+     "Variant A · Draft 3" with a round letter badge and a green left edge.
+     Behavioral groups are shown by group name. A plain campaign is headed
+     "Single message" or "Individual messages".
+  2. Channel (card inside the box). SMS and Email sit side by side, each with
+     its own icon. SMS text appears in a chat bubble; email shows the subject, a
+     divider, then the body.
+  3. Language (switch inside each card). A small pill toggle sits in the card's
+     header and starts on the campaign's main language. Switching only fades in
+     the translated text. The card, its position and the variant it belongs to
+     stay the same. If a card has only one language, its name is shown as plain
+     text instead of a toggle.
+
+  Each card ends with a line naming the sample recipient and the content source,
+  for example "To Ayşe · template". The section title also changed, from
+  "Message previews (12)" to something like "Message previews · 2 variants ·
+  switch language inside each card".
+
+  Two limits:
+  - Missing languages: the server returns at most 12 sample messages. A campaign
+    with many variants, groups and languages can therefore have cards that lack
+    some languages. Those cards simply offer fewer language options.
+  - Per-card language: each card remembers its own language choice; there is no
+    single switch that changes every card at once.
+
+  The changes are all in ReviewPanel.vue
+  (frontend/src/components/ReviewPanel.vue).
+
+[Image #6]
+
+❯ user cards overall to cheap, modern visually appealing clean readable cards
+  with avatar chips etc, also localization chips overall app should be enhanced
+  use country flag icons etc convinient
+
+  Read 1 file, ran 3 shell commands (ctrl+o to expand)
+⏺ I'm adding three shared pieces: a flag icon, a language chip and an avatar.
+  Then I'll redesign the group cards and swap the language labels across the
+  app.
+
+⏺ Write(src/components/Flag.vue)
+  ⎿  Wrote 66 lines to src/components/Flag.vue
+       1 <script setup lang="ts">
+       2 /**
+       3  * Small inline SVG flag for a content language (no emoji: Windo
+         ws has no flag
+       4  * glyphs). English uses the UK flag; unknown codes get a neutra
+         l globe.
+       5  * Decorative: the language name always appears next to it.
+       6  */
+       7 defineProps<{ lang: string }>()
+       8 </script>
+     … +58 lines (ctrl+o to expand)
+
+⏺ Write(src/components/LangChip.vue)
+  ⎿  Wrote 55 lines to src/components/LangChip.vue
+       1 <script setup lang="ts">
+       2 import { languageName } from '../api'
+       3 import Flag from './Flag.vue'
+       4
+       5 /** Language label used app-wide: flag + name (+ optional count)
+         . */
+       6 withDefaults(defineProps<{ lang: string; count?: number | string
+         ; short?: boolean; plain?: boolean }>(), {
+       7   count: undefined,
+       8   short: false,
+     … +47 lines (ctrl+o to expand)
+
+⏺ Write(src/components/Avatar.vue)
+  ⎿  Wrote 51 lines to src/components/Avatar.vue
+       1 <script setup lang="ts">
+       2 import { computed } from 'vue'
+       3
+       4 /** Initials avatar; the tint is stable per person and drawn fro
+         m the theme's greens. */
+       5 const props = withDefaults(defineProps<{ name: string; size?: nu
+         mber }>(), { size: 36 })
+       6
+       7 const TINTS = [
+       8   ['#dde8b5', '#204d3c'],
+     … +43 lines (ctrl+o to expand)
+
+  Ran 5 shell commands (ctrl+o to expand)
+
+⏺ The build passes. Last, I'm removing the old initials code that the new avatar
+  replaced, then checking the dev server.
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+⏺ I redesigned the behavioral group cards and their customer previews, and every
+  language label in the app now shows a small flag next to the language name.
+  The typecheck and build pass and the dev server compiles every changed file; I
+  haven't looked at it in a browser.
+
+  Group cards (strategy step)
+  - Header: the group name and description, with a status badge on the right: No
+    messages yet, Writing, Messages ready or Failed. A "Base draft changed"
+    warning appears beside it when the group's messages are out of date.
+  - Edge colour: ready groups get a green left edge and failed ones a red one.
+  - Size: "85 people · 23% of reachable" in larger type, with a thin bar showing
+    the share.
+  - Chips: one language chip per language with its count (for example "🇹🇷
+    Turkish 67"), plus the targeting rules as soft green chips instead of grey
+    italic text.
+  - Editing: the language and channel buttons are now two small pill toggles.
+
+  Typical customers ("Preview typical customers" opens them as cards side by
+  side):
+  - Person: a round avatar with the person's initials and a tint that stays the
+    same for each person, their name and city, and their language chip.
+  - Stats: four small tiles: Orders, Spent, Last order and Last cart, with short
+    times like "13d ago" or "5mo ago".
+  - Consent: SMS and Email chips; a ticked chip means consent, a struck-through
+    one means none.
+  - Message: "Receives 🇹🇷 Turkish" with a green "Group message" tag, or an amber
+    "Base draft · group message not written yet" tag. Below it, the SMS in a
+    speech bubble and the email subject next to an envelope icon.
+  - Loading: a shimmer outline of the cards appears while they load.
+
+  Flags across the app
+
+  ┌─────────────────┬───────────────────────────────────────────────────────┐
+  │      Where      │                        Change                         │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │ Content editor  │ Language tabs show flags                              │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │ Review          │ Language counts, language toggles inside preview      │
+  │                 │ cards, issues tagged by language                      │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │ Delivery        │ Content language counts                               │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │ Recipient       │ Avatar and language chip for each person, plus a      │
+  │ preview         │ "gets 🇬🇧 English" note when the message is sent in a  │
+  │                 │ different language than they speak                    │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │ Individual      │ Avatar and language chip on each sample and result    │
+  │ messages        │                                                       │
+  ├─────────────────┼───────────────────────────────────────────────────────┤
+  │ Customer table  │ Flag next to the language code, and the new avatars   │
+  │ and drawer      │                                                       │
+  └─────────────────┴───────────────────────────────────────────────────────┘
+
+  The flags are drawn as small images rather than emoji, because Windows doesn't
+  show emoji flags. Two choices to check:
+  - English uses the UK flag. If your customers are mostly American, change it
+    to the US flag.
+  - Coverage: Turkish and English are the languages the app supports today.
+    German, French, Italian, Spanish, Russian and Dutch have flags ready, and
+    any other language gets a neutral globe.
+
+  The new pieces are Flag.vue (frontend/src/components/Flag.vue), LangChip.vue
+  (frontend/src/components/LangChip.vue) and Avatar.vue
+  (frontend/src/components/Avatar.vue), and the group card redesign is in
+  GroupsPanel.vue (frontend/src/components/GroupsPanel.vue).
+
+❯ proper fav icon
+
+  overall UI/UX check, any bugs fixes, further enhancements ?
+
+  Listed 1 directory, ran 1 shell command (ctrl+o to expand)
+
+⏺ Favicon done. Now a quick code-level sweep for likely bugs (listeners, timers,
+  a11y).
+
+  Searched for 2 patterns, ran 4 shell commands (ctrl+o to expand)
+
+⏺ The app now has a proper favicon, and I fixed two bugs I found by reading the
+  code. The typecheck and build pass and the dev server serves the favicon and
+  every changed file. I didn't open the app in a browser, so the "overall UI/UX
+  check" was a code read, not a visual pass.
+
+  Favicon: a forest-green rounded square with the pistachio leaf from the
+  sidebar logo (public/favicon.svg (frontend/public/favicon.svg)). I also added
+  a browser theme colour and a page description, and the tab now says "Campaign
+  Studio".
+
+  Fixes
+  1. "New campaign" reopened the last finished campaign. The page is kept in
+     memory so your brief survives switching pages, which meant that after
+     approving a campaign, "New campaign" showed it again. It now starts fresh
+     after an approved campaign, which stays reachable from its delivery page.
+     An unfinished draft is still kept, because unfinished drafts in the
+     campaign list can't be clicked, so this page is the only way back to them.
+  2. Flags could lose their rounded corners when a hidden copy of the same flag
+     appeared first on the page. The corners are now drawn a different way that
+     doesn't depend on that.
+  3. Page titles: each tab is named for its page, such as "New campaign ·
+     Campaign Studio" or "Delivery · Campaign #12 · Campaign Studio".
+  4. Retry buttons: the two Retry buttons in Audience Explorer now behave as
+     plain buttons.
+
+  I also checked timers, polling and event listeners for leaks and found none.
+
+  Further improvements I'd suggest, most useful first
+  1. Make unfinished campaigns openable from the list. Right now only approved
+     ones link anywhere, so an unfinished draft is lost once you start a new
+     one. This is the biggest gap.
+  2. A real "Start over" on the New campaign page, so you can drop an unfinished
+     draft on purpose instead of relying on the automatic reset.
+  3. PNG versions of the icon for iPhone home screens and old browsers, which
+     can't show the SVG one. It's a small job: make the image files and add one
+     line to the page.
+  4. Keyboard arrows for the language and channel toggles. They work with Tab
+     today; arrow keys would match how such toggles usually behave.
+  5. Reduced motion: turning motion off also blocks the card scaling and hover
+     lifts, and the recommended audience card loses its slight enlargement.
+     Showing that emphasis another way would keep it visible.
+  6. A look in the browser, mainly at the new group and customer cards on narrow
+     screens. I can do this if you'd like.
+
+❯ only 1-2 then you perform full browser test by yourself experience the app
+  keep it simple, return with further improvements if any
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ Building both: drafts open from the list via a new #/campaigns/{id} route,
+  plus an explicit "Start over".
+
+  Ran 4 shell commands (ctrl+o to expand)
+
+⏺ Now the template: breadcrumb, opening/error states, Start over, and list
+  links.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ Both features build cleanly. Now the browser pass, so first I'm checking which
+  browser tools are available.
+
+  Read 3 files, listed 1 directory, ran 2 shell commands (ctrl+o to expand)
+
+⏺ Campaigns and Explorer render correctly with no console errors. Next I'll test
+  a saved draft, Start over, and the audience-suggestion loading state.
+  · summary
+
+  Read 4 files, ran 1 shell command (ctrl+o to expand)
+
+⏺ Reopening a draft, reloading it and Start over all work. The pass turned up a
+  few visual bugs and one failing request, so I'm checking the failing request
+  first.
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+⏺ The 502 was a brief backend reload and the retry returns 200, so I'm adding a
+  Retry button to the recipient preview along with the visual fixes. · summary
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Found the cause of the odd Cancel button: in BriefComposer, the class for the
+  placeholder cards (.ghost) is the same as the button class. That affects
+  Cancel and Retry.
+
+  Searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+⏺ The build passes. Now I'm re-checking the fixed screens and the phone layout
+  in the browser.
+
+  Read 4 files, ran 1 shell command (ctrl+o to expand)
+
+⏺ Two layout bugs are showing: the Approve and Strategy bars overlap at the
+  bottom of the Review step, and the audience results page scrolls sideways on
+  phones. I'm finding which element causes the sideways scroll. · summary
+
+  Ran 1 shell command (ctrl+o to expand)
+
+⏺ Found it: on narrow screens the page column can stretch to fit its widest
+  content, so a wide part of the page widens the whole layout. Wide screens
+  already prevent this.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+⏺ No page scrolls sideways on a phone now. One last visual check of the phone
+  layout and the Review step's bottom bar:
+
+  Read 2 files, ran 3 shell commands (ctrl+o to expand)
+⏺ I've added the two features and gone through the app in a headless Chrome at
+  desktop and phone sizes. The browser run turned up five bugs, now fixed, and
+  the final pass showed no errors in the browser console. The browser was a
+  temporary scratch install that leaves the project untouched. The run asked
+  Claude for audience suggestions twice (a cost of a few cents); it created no
+  campaigns and sent nothing.
+
+  What I added
+  1. Unfinished campaigns open from the list. Clicking a draft opens it where
+     you left it, at an address like #/campaigns/6, which survives a page
+     refresh. A new campaign moves to its own address as soon as you confirm the
+     audience. Approved campaigns still open their delivery page, and the note
+     under the list now says this.
+  2. Start over. A small button at the top right of the campaign page clears
+     everything and starts a fresh campaign. Saved campaigns stay in the
+     Campaigns list. Going to "New campaign" with a saved campaign open also
+     starts fresh.
+
+  Bugs found in the browser and fixed
+  - Phones: the New campaign page scrolled sideways by 50–700 px. Wide content
+    could stretch the whole page; it can't any more, and no page scrolls
+    sideways at phone width.
+  - Review step: the "Approve" bar and the "← Strategy" bar sat on top of each
+    other at the bottom of the screen. The Strategy bar no longer sticks there
+    on this step.
+  - Cancel and Retry buttons in the audience brief looked like large dashed
+    boxes, because they shared a style name with the placeholder cards. I
+    renamed the placeholder style.
+  - Review "Check these" list: group names ran straight into the flag
+    ("buyers🇹🇷Turkish:"). Each now shows the name, a language chip, then the
+    message. The message-count line also lost its stray trailing "·".
+  - Review previews: a short SMS card stretched to the height of the email card
+    next to it, leaving a large empty space. Each card is now only as tall as
+    its content.
+
+  The phone step summary also gained a missing space ("Audience · Describe…").
+
+  Two other things I noticed
+  - Recipient preview failure: once, the recipient preview showed "Failed
+    (502)". The backend was rebuilding at that moment because of other edits to
+    the backend. It compiles cleanly now and the request returns normally. The
+    preview had no way to recover, so I added a Retry button.
+  - Data: some customers speak German (they show the German flag) and get the
+    English message. The Campaigns list also has several identical "Lapsed
+    electronics buyers" drafts from earlier testing. Neither is a code issue.
+
+  Further improvements, if you want them
+  1. Customer table at full desktop width: the last columns (Email and SMS
+     consent) are cut off and need a sideways scroll. Hiding "Last active" or
+     combining the two consent columns would make everything fit.
+  2. Repeated warnings: on the Strategy and Review steps, groups can show four
+     or more near-identical "nearly the same as…" lines each. Grouping them into
+     one line per group, such as "Overlaps with 3 groups", would cut a lot of
+     noise.
+  3. Draft list: you can now delete or rename drafts only by starting over. A
+     "…" menu on each row (Rename, Delete) would keep the list tidy once drafts
+     pile up.
+  4. Hover card after filtering: in Audience Explorer, clicking an audience card
+     scrolls to the table, and the customer hover card can then pop up under
+     the still mouse without you moving it. Hiding it until the mouse actually
+     moves would fix that.
