@@ -8,11 +8,8 @@ defineProps<{ lang: string }>()
 </script>
 
 <template>
-  <svg class="flag" viewBox="0 0 30 20" aria-hidden="true" focusable="false">
-    <defs>
-      <clipPath :id="`flag-clip-${lang}`"><rect width="30" height="20" rx="3" /></clipPath>
-    </defs>
-    <g :clip-path="`url(#flag-clip-${lang})`">
+  <svg class="flag" viewBox="0 0 30 20" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <g>
       <template v-if="lang === 'tr'">
         <rect width="30" height="20" fill="#e30a17" />
         <circle cx="11" cy="10" r="5" fill="#fff" />
@@ -60,6 +57,7 @@ defineProps<{ lang: string }>()
   flex: none;
   width: 18px;
   height: 12px;
+  overflow: hidden;
   border-radius: 3px;
   vertical-align: -1px;
 }

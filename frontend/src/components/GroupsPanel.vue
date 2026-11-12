@@ -153,6 +153,10 @@ const issuesFor = (g: Group, ch: 'sms' | 'email') =>
           <LangChip v-for="(n, l) in g.languages" :key="l" :lang="String(l)" :count="n" />
           <span v-for="c in g.conditions_text" :key="c" class="rule">{{ c }}</span>
         </div>
+        <!-- Why this group gets its own message: the angle planned with the groups, then how the message builds on it. -->
+        <p v-if="g.status === 'generated' && g.rationale" class="why"><strong>Why this message:</strong> {{ g.rationale }}</p>
+        <p v-else-if="g.position !== 0 && g.angle" class="why"><strong>Planned angle:</strong> {{ g.angle }}</p>
+        <p v-else-if="g.position === 0" class="why muted">General message: these customers share no behavior beyond the audience, so nothing is assumed about them.</p>
         <div v-if="g.error" class="fail" role="alert"><span class="state failed">Failed</span><p class="msg">{{ g.error }}</p></div>
 
         <div v-if="g.status === 'generated' && editing !== g.position" class="messages">
@@ -392,6 +396,14 @@ const issuesFor = (g: Group, ch: 'sms' | 'email') =>
 .message {
   display: grid;
   gap: 4px;
+}
+.why {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  border-left: 3px solid var(--accent-soft);
+  background: var(--surface-muted);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
 }
 .issues {
   margin: 0;

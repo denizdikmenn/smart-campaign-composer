@@ -43,7 +43,7 @@ const state = (i: number) =>
     <p class="compact" aria-hidden="true">
       <span class="compact-step">Step {{ current + 1 }} of {{ steps.length }}</span>
       <strong>{{ steps[current]?.label }}</strong>
-      <span class="compact-status">· {{ status }}</span>
+      <span class="compact-status">&nbsp;· {{ status }}</span>
     </p>
 
     <div class="rail" aria-hidden="true">

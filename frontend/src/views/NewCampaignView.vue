@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { createCampaign, type AudienceAlternative, type CampaignView } from '../api'
+import { computed, ref, watch } from 'vue'
+import { createCampaign, getCampaign, type AudienceAlternative, type CampaignView } from '../api'
 import BriefComposer from '../components/BriefComposer.vue'
 import ContentStudio, { type Step, type StudioPhase } from '../components/ContentStudio.vue'
+import AiProgress from '../components/AiProgress.vue'
 import StepIndicator from '../components/StepIndicator.vue'
-import { href, navigate } from '../router'
+import { editId, href, navigate, route } from '../router'
 
 const number = new Intl.NumberFormat('en-US')
 
@@ -60,6 +61,7 @@ async function confirmAudience() {
   try {
     studio.value = { phase: 'generating', draft: 1 }
     campaign.value = await createCampaign(chosenBrief.value, chosen.value)
+    navigate(`/campaigns/${campaign.value.campaign.id}`) // reopenable and refresh-safe
     window.scrollTo({ top: 0 })
   } catch (e) {
     createError.value = e instanceof Error ? e.message : 'Could not save the campaign'
@@ -68,9 +70,61 @@ async function confirmAudience() {
   }
 }
 
-// Leaves the stored draft campaign as is; confirming again starts a new one.
+// #/campaigns/{id} opens a saved campaign; #/campaigns/new is always a new one.
+// The brief composer stays mounted (KeepAlive), so a brief in progress survives
+// visiting other pages; "Start over" clears it on purpose.
+const composerKey = ref(0)
+const opening = ref(false)
+const openError = ref('')
+let openCtl: AbortController | null = null
+
+function reset() {
+  campaign.value = null
+  chosen.value = null
+  chosenBrief.value = ''
+  hasOptions.value = false
+  createError.value = ''
+  composerKey.value++
+}
+function startOver() {
+  reset()
+  if (route.value !== '/campaigns/new') navigate('/campaigns/new')
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+async function open(id: number) {
+  openCtl?.abort()
+  openCtl = new AbortController()
+  opening.value = true
+  openError.value = ''
+  try {
+    const c = await getCampaign(id, openCtl.signal)
+    studio.value = { phase: c.campaign.status === 'approved' ? 'approved' : 'editing', draft: c.drafts.at(-1)?.version ?? 1 }
+    campaign.value = c
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return
+    openError.value = e instanceof Error ? e.message : 'Could not open this campaign'
+  } finally {
+    opening.value = false
+  }
+}
+
+watch(
+  [editId, route],
+  ([id, r]) => {
+    if (id) {
+      if (campaign.value?.campaign.id !== id) void open(id)
+    } else if (r === '/campaigns/new' && campaign.value) {
+      reset() // the saved campaign stays reachable from the Campaigns list
+    }
+  },
+  { immediate: true },
+)
+
+// Back to the audience step: the saved campaign is kept; confirming again creates a new one.
 function backToAudience() {
   campaign.value = null
+  navigate('/campaigns/new')
 }
 
 // Stage and sub-progress, shown on the stepper.
@@ -95,8 +149,20 @@ const phase = computed(() => {
     <nav class="crumbs" aria-label="Breadcrumb">
       <a :href="href('/campaigns')">Campaigns</a>
       <span aria-hidden="true">/</span>
-      <span aria-current="page">New campaign</span>
+      <span aria-current="page">{{ editId ? `Campaign #${editId}` : 'New campaign' }}</span>
+      <button v-if="campaign || chosen || hasOptions" type="button" class="restart" title="Saved campaigns stay in the Campaigns list" @click="startOver">
+        Start over
+      </button>
     </nav>
+
+    <AiProgress v-if="opening" kind="task" title="Opening campaign" detail="Loading drafts, strategy and review state." compact :elapsed="false" />
+    <div v-else-if="openError && editId && !campaign" class="fail" role="alert">
+      <span class="state failed">Failed</span>
+      <p class="msg">{{ openError }}</p>
+      <button type="button" class="ghost" @click="open(editId)">Retry</button>
+      <a class="ghost" :href="href('/campaigns/new')">New campaign</a>
+    </div>
+    <template v-else>
     <StepIndicator
       :steps="STEPS"
       :current="phase.current"
@@ -125,7 +191,7 @@ const phase = computed(() => {
 
     <!-- Kept mounted so going back restores the brief, options and selection. -->
     <div v-show="!campaign">
-      <BriefComposer @select="onChoose" @generated="hasOptions = $event" />
+      <BriefComposer :key="composerKey" @select="onChoose" @generated="hasOptions = $event" />
 
       <div v-if="chosen" class="action-bar" role="region" aria-label="Selected audience">
         <p role="status">
@@ -151,6 +217,7 @@ const phase = computed(() => {
       @phase="(p, d) => (studio = { phase: p, draft: d })"
       @step="step = $event"
     />
+    </template>
   </section>
 </template>
 
@@ -165,6 +232,22 @@ const phase = computed(() => {
 .crumbs a {
   color: inherit;
   font-weight: 500;
+}
+.restart {
+  margin-left: auto;
+  padding: 3px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.restart:hover {
+  color: var(--text);
+  border-color: var(--accent);
 }
 .crumbs a:hover {
   color: var(--text);

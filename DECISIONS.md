@@ -82,7 +82,8 @@ statement as the delivery update. A rejection is flagged `permanent`.
 **Manual retry.** A marketer can requeue failed deliveries that aren't permanent. The same row goes back to
 `retrying`, so the same idempotency key, worker, rate limit and consent re-check apply. `retry_base` records the attempt
 count at that moment, so the policy gives a new round of up to 4 attempts. The first attempt of the round is marked
-`manual` in the history. Sent, skipped, pending and permanently rejected deliveries are refused with a reason. A
+`manual` in the history. The mock provider simulates no failures for manually retried messages, so they go out; consent
+is still re-checked. Sent, skipped, pending and permanently rejected deliveries are refused with a reason. A
 message that the provider accepted earlier but whose response was lost is replayed under its key and gets the
 original message ID, so nothing is sent twice. A retry is a row becoming due
 again, never a tight loop. Error strings are stable so monitoring can group them into "common reasons".

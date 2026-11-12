@@ -7,7 +7,7 @@ package content
 //
 // Opt in: HARDEN_EVAL=1 ANTHROPIC_API_KEY=... go test ./internal/content -run TestHardeningEval -v -timeout 20m
 // Filter: HARDEN_EVAL_ONLY=G01,L02
-// Writes ../../../evals/hardening/reports/latest.{md,json}.
+// Writes ../../../evals/hardening/reports/latest.{md,json} (subset.{md,json} with a filter).
 
 import (
 	"context"
@@ -490,7 +490,21 @@ var grpScenarios = []grpScenario{
 			return ms
 		},
 		review: "Are groups meaningful for a mostly-empty-history audience?"},
+	{id: "B05", name: "Behavior varies but the message would not",
+		intent: "60 recent repeat buyers whose spend and order count vary smoothly, no carts; a store-wide announcement.", expected: "not_meaningful, or at most 2 groups whose angles are clearly different; no offers or perks invented in angles.",
+		brief: "Let customers know our store opening hours change from next Monday: we now open at 9am.",
+		members: func(now time.Time) []segmentation.Member {
+			var ms []segmentation.Member
+			for i := 0; i < 60; i++ {
+				ms = append(ms, member(now, i, 2+i%6, 1500+float64(i*60), 10+i%20, -1, 3+i%7, 500+i))
+			}
+			return ms
+		}, maxGroups: 2},
 }
+
+// inventedOffer matches perks an angle must not plan when the brief has none.
+// ("reward" is not listed: it describes points programmes the brief itself announces, see B03.)
+var inventedOffer = regexp.MustCompile(`(?i)discount|% off|free |gift|voucher|coupon|exclusive offer`)
 
 var purchaseWords = regexp.MustCompile(`(?i)bought|purchas|order|spen[dt]|buyer`)
 var orderFields = map[string]bool{"order_count": true, "total_spent": true, "days_since_last_order": true, "bought_category": true, "cart_after_last_order": true}
@@ -528,10 +542,23 @@ func (sc grpScenario) run(ctx context.Context, g *Claude) hResult {
 		if purchaseWords.MatchString(p.Name+" "+p.Description) && !hasOrder {
 			r.fail(catInvented, "group %q claims purchase behavior but its rules have no order field (%s)", p.Name, text)
 		}
-		desc = append(desc, fmt.Sprintf("%s [%s]%s", p.Name, text, map[bool]string{true: "", false: " INVALID"}[verr == nil]))
+		if strings.TrimSpace(p.Angle) == "" {
+			r.fail(catMisunderstood, "group %q has no message angle", p.Name)
+		}
+		if inventedOffer.MatchString(p.Angle+" "+p.Description) && !inventedOffer.MatchString(sc.brief) {
+			r.fail(catInvented, "group %q plans an offer the brief does not contain: %q", p.Name, p.Angle)
+		}
+		desc = append(desc, fmt.Sprintf("%s [%s] angle: %s%s", p.Name, text, excerpt(p.Angle, 120), map[bool]string{true: "", false: " INVALID"}[verr == nil]))
 		r.Outputs = append(r.Outputs, map[string]any{"group": p, "rules_text": text, "valid": verr == nil})
 	}
 	r.Actual = fmt.Sprintf("outcome=%s; %s; groups: %s", res.Outcome, excerpt(res.Message, 140), strings.Join(desc, " | "))
+	for i, a := range res.Groups {
+		for _, b := range res.Groups[:i] {
+			if o := overlap(words(Version{SMSBody: a.Angle}), words(Version{SMSBody: b.Angle})); o >= similarGroups {
+				r.fail(catMisunderstood, "groups %q and %q have nearly the same angle (overlap %.2f)", b.Name, a.Name, o)
+			}
+		}
+	}
 	if sc.wantNotMeaningful && res.Outcome != "not_meaningful" && (sc.id != "B01" || valid > 2) {
 		r.fail(catMisunderstood, "expected not_meaningful, got %d groups", len(res.Groups))
 	}
@@ -655,6 +682,9 @@ func TestHardeningEval(t *testing.T) {
 	for _, s := range grpScenarios {
 		rs = append(rs, runner{s.id, func() hResult { return s.run(ctx, g) }})
 	}
+	for _, s := range gcScenarios {
+		rs = append(rs, runner{s.id, func() hResult { return s.run(ctx, g) }})
+	}
 	for _, s := range perScenarios {
 		rs = append(rs, runner{s.id, func() hResult { return s.run(ctx, g) }})
 	}
@@ -678,10 +708,14 @@ func TestHardeningEval(t *testing.T) {
 	if only == "" {
 		results = append(results, notRun...)
 	}
-	writeReport(t, g.Model(), time.Since(start), results)
+	name := "latest" // a filtered run never overwrites the full report and its manual review
+	if only != "" {
+		name = "subset"
+	}
+	writeReport(t, name, g.Model(), time.Since(start), results)
 }
 
-func writeReport(t *testing.T, model string, dur time.Duration, rs []hResult) {
+func writeReport(t *testing.T, name, model string, dur time.Duration, rs []hResult) {
 	dir := filepath.Join("..", "..", "..", "evals", "hardening", "reports")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -697,7 +731,7 @@ func writeReport(t *testing.T, model string, dur time.Duration, rs []hResult) {
 		cost = fmt.Sprintf("$%.4f", p.USD(in, out))
 	}
 	js, _ := json.MarshalIndent(map[string]any{"model": model, "duration_s": dur.Seconds(), "input_tokens": in, "output_tokens": out, "results": rs}, "", "  ")
-	if err := os.WriteFile(filepath.Join(dir, "latest.json"), js, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name+".json"), js, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -724,7 +758,7 @@ func writeReport(t *testing.T, model string, dur time.Duration, rs []hResult) {
 	b.WriteString("\n## Recommendations\n\n_Filled in by hand after reviewing this run (see below)._\n\n")
 	fmt.Fprintf(&b, "## Execution summary\n\n- Model: `%s`\n- Tokens: %d input, %d output (cost at list price: %s)\n- Duration: %s\n- Raw outputs: [latest.json](latest.json)\n",
 		model, in, out, cost, dur.Round(time.Second))
-	if err := os.WriteFile(filepath.Join(dir, "latest.md"), []byte(b.String()), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name+".md"), []byte(b.String()), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

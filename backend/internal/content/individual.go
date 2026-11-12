@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -17,6 +18,11 @@ import (
 
 // historyWindow: cart additions older than this don't count as history.
 const historyWindow = 180 * 24 * time.Hour
+
+// MaxIndividual caps individual personalization (a demo, not a production
+// rollout): at most this many customers get a message written for them,
+// samples included. Everyone else in the audience gets the base message.
+const MaxIndividual = 10
 
 // PersonalMessage is one customer's individually generated message (or why
 // they get the Standard template instead).
@@ -42,8 +48,9 @@ type IndividualSummary struct {
 	Failed    int               `json:"failed"`
 	Stale     int               `json:"stale"` // generated from an earlier base text
 	Running   bool              `json:"running"`
-	Applied   bool              `json:"applied"` // Apply to all was confirmed
-	Samples   []PersonalMessage `json:"samples"`
+	Applied   bool              `json:"applied"` // Apply was confirmed
+	Limit     int               `json:"limit"`   // MaxIndividual
+	Samples   []PersonalMessage `json:"samples"` // every picked customer (at most Limit)
 }
 
 // HasHistory reports whether a member has enough activity to personalize.
@@ -71,7 +78,7 @@ func personalInput(h segmentation.History, now time.Time) PersonalInput {
 }
 
 func (s *Service) individualSummary(ctx context.Context, c Campaign) (IndividualSummary, error) {
-	sum := IndividualSummary{Running: s.running(jobKey("individual", c.ID)), Samples: []PersonalMessage{}}
+	sum := IndividualSummary{Running: s.running(jobKey("individual", c.ID)), Limit: MaxIndividual, Samples: []PersonalMessage{}}
 	rows, err := s.pool.Query(ctx, `SELECT status, count(*) FROM personalized_messages WHERE campaign_id = $1 GROUP BY status`, c.ID)
 	if err != nil {
 		return sum, err
@@ -104,7 +111,7 @@ func (s *Service) individualSummary(ctx context.Context, c Campaign) (Individual
 	if base != "" {
 		_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM personalized_messages WHERE campaign_id = $1 AND status = 'generated' AND base_hash <> $2`, c.ID, base).Scan(&sum.Stale)
 	}
-	sum.Samples, err = s.personalMessages(ctx, c.ID, `status IN ('generated', 'failed', 'fallback')`, 8)
+	sum.Samples, err = s.personalMessages(ctx, c.ID, `status IN ('generated', 'failed', 'fallback')`, MaxIndividual)
 	return sum, err
 }
 
@@ -191,7 +198,7 @@ type SampleResult struct {
 }
 
 // Sample generates one customer's personalized message (stored and reused
-// by Apply to all) and estimates the cost of everyone else.
+// by Apply) and estimates the cost of the remaining picks.
 func (s *Service) Sample(ctx context.Context, id, customerID int64) (SampleResult, error) {
 	if s.running(jobKey("individual", id)) {
 		return SampleResult{}, ErrBusy
@@ -209,6 +216,13 @@ func (s *Service) Sample(ctx context.Context, id, customerID int64) (SampleResul
 	if !h.Reachable() {
 		return SampleResult{}, invalid("this customer has not consented to email or SMS")
 	}
+	picked, err := s.pickedCustomers(ctx, id)
+	if err != nil {
+		return SampleResult{}, err
+	}
+	if _, again := picked[customerID]; !again && len(picked) >= MaxIndividual {
+		return SampleResult{}, invalid("individual messages are limited to %d customers in this demo; everyone else gets the base message", MaxIndividual)
+	}
 	var res SampleResult
 	now := s.now()
 	if HasHistory(h.Member, now) {
@@ -219,7 +233,7 @@ func (s *Service) Sample(ctx context.Context, id, customerID int64) (SampleResul
 			return res, err
 		}
 	} else {
-		res.Message = fallbackMessage(h.Member)
+		res.Message = withBase(fallbackMessage(h.Member), base)
 	}
 	if err := s.storePersonal(ctx, c.ID, res.Message, hashOf(baseText(c, base)), false); err != nil {
 		return res, err
@@ -232,39 +246,84 @@ func (s *Service) Sample(ctx context.Context, id, customerID int64) (SampleResul
 	return res, nil
 }
 
+// withBase fills a message that was not personalized with the base message
+// in its language, so every picked customer shows the text they will get.
+func withBase(m PersonalMessage, base Draft) PersonalMessage {
+	if m.Status != "generated" && m.Version.empty() {
+		m.Version, _ = pickVersion(base, m.Language)
+		m.Version.BaseHash = ""
+	}
+	return m
+}
+
+// pickedCustomers are the customers already chosen for individual messages
+// (samples and queued ones, any status), with their status.
+func (s *Service) pickedCustomers(ctx context.Context, id int64) (map[int64]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT customer_id, status FROM personalized_messages WHERE campaign_id = $1`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]string{}
+	for rows.Next() {
+		var cid int64
+		var st string
+		if err := rows.Scan(&cid, &st); err != nil {
+			return nil, err
+		}
+		out[cid] = st
+	}
+	return out, rows.Err()
+}
+
+// nextPicks fills the remaining slots up to MaxIndividual with the most
+// recently active members that have history (ties by id).
+func nextPicks(members []segmentation.Member, picked map[int64]string, now time.Time) []segmentation.Member {
+	ms := slices.Clone(members)
+	sort.SliceStable(ms, func(i, j int) bool { return ms[i].LastActiveAt.After(ms[j].LastActiveAt) })
+	var out []segmentation.Member
+	for _, m := range ms {
+		if len(picked)+len(out) >= MaxIndividual {
+			break
+		}
+		if _, ok := picked[m.ID]; !ok && HasHistory(m, now) {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
 func fallbackMessage(m segmentation.Member) PersonalMessage {
 	return PersonalMessage{CustomerID: m.ID, FirstName: m.FirstName, Language: ContentLanguage(m.Language), Status: "fallback",
 		Reason: "Not enough purchase or cart history; the Standard message is used."}
 }
 
-// individualWork counts reachable members that still need generation, and
-// those that will get the Standard template because they lack history.
+// individualWork counts the picked customers that still need a model call
+// (pending or failed, plus the slots Apply will fill), and the members who get
+// the base message instead (not picked, or picked without enough history).
 func (s *Service) individualWork(ctx context.Context, c Campaign) (remaining, fallbacks int, err error) {
-	done := map[int64]bool{}
-	rows, err := s.pool.Query(ctx, `SELECT customer_id FROM personalized_messages WHERE campaign_id = $1 AND status IN ('generated', 'fallback')`, c.ID)
+	picked, err := s.pickedCustomers(ctx, c.ID)
 	if err != nil {
 		return 0, 0, err
 	}
-	for rows.Next() {
-		var cid int64
-		_ = rows.Scan(&cid)
-		done[cid] = true
-	}
-	rows.Close()
 	members, err := s.reachableMembers(ctx, c, nil)
 	if err != nil {
 		return 0, 0, err
 	}
-	now := s.now()
-	for _, m := range members {
-		switch {
-		case !HasHistory(m, now):
-			fallbacks++
-		case !done[m.ID]:
+	for _, st := range picked {
+		if st == "pending" || st == "failed" {
 			remaining++
 		}
 	}
-	return remaining, fallbacks, nil
+	next := len(nextPicks(members, picked, s.now()))
+	remaining += next
+	fallbacks = len(members) - remaining
+	for _, st := range picked {
+		if st == "generated" {
+			fallbacks--
+		}
+	}
+	return remaining, max(fallbacks, 0), nil
 }
 
 // IndividualEstimate is the cost of generating everyone still pending.
@@ -340,10 +399,10 @@ func (s *Service) storePersonal(ctx context.Context, id int64, m PersonalMessage
 	return err
 }
 
-// ApplyIndividual queues every reachable member without a generated message
-// and starts background generation. Members without history get the
-// Standard template (fallback) without a model call. Calling it again
-// resumes after a stop or restart.
+// ApplyIndividual fills the remaining slots up to MaxIndividual (most
+// active customers with history), retries failed picks, and starts
+// background generation. Nobody else gets a model call: they get the base
+// message. Calling it again resumes after a stop or restart.
 func (s *Service) ApplyIndividual(ctx context.Context, id int64) error {
 	c, base, err := s.requireMode(ctx, id, ModeIndividual)
 	if err != nil {
@@ -352,8 +411,16 @@ func (s *Service) ApplyIndividual(ctx context.Context, id int64) error {
 	if s.running(jobKey("individual", id)) {
 		return ErrBusy
 	}
-	var samples int
-	_ = s.pool.QueryRow(ctx, `SELECT count(*) FROM personalized_messages WHERE campaign_id = $1 AND status = 'generated'`, id).Scan(&samples)
+	picked, err := s.pickedCustomers(ctx, id)
+	if err != nil {
+		return err
+	}
+	samples := 0
+	for _, st := range picked {
+		if st == "generated" {
+			samples++
+		}
+	}
 	if samples == 0 {
 		return invalid("generate and review a sample first")
 	}
@@ -361,32 +428,23 @@ func (s *Service) ApplyIndividual(ctx context.Context, id int64) error {
 	if err != nil {
 		return err
 	}
-	now := s.now()
-	var pendingIDs, fallbackIDs []int64
-	var pendingLang, fallbackLang []string
-	for _, m := range members {
-		if HasHistory(m, now) {
-			pendingIDs, pendingLang = append(pendingIDs, m.ID), append(pendingLang, ContentLanguage(m.Language))
-		} else {
-			fallbackIDs, fallbackLang = append(fallbackIDs, m.ID), append(fallbackLang, ContentLanguage(m.Language))
-		}
+	var ids []int64
+	var langs []string
+	for _, m := range nextPicks(members, picked, s.now()) {
+		ids, langs = append(ids, m.ID), append(langs, ContentLanguage(m.Language))
 	}
-	reason := fallbackMessage(segmentation.Member{}).Reason
 	err = s.mutate(ctx, id, func(tx pgx.Tx, _ Campaign) error {
-		// Failed rows are retried on resume; generated ones are kept.
+		// Failed picks are retried on resume; generated ones are kept.
+		if _, err := tx.Exec(ctx, `UPDATE personalized_messages SET status = 'pending', reason = '', updated_at = now()
+			WHERE campaign_id = $1 AND status = 'failed'`, id); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `INSERT INTO personalized_messages (campaign_id, customer_id, language, status)
 			SELECT $1, u.id, u.lang, 'pending' FROM unnest($2::bigint[], $3::text[]) AS u(id, lang)
-			ON CONFLICT (campaign_id, customer_id) DO UPDATE SET status = 'pending', reason = '', updated_at = now()
-			WHERE personalized_messages.status = 'failed'`, id, pendingIDs, pendingLang); err != nil {
+			ON CONFLICT (campaign_id, customer_id) DO NOTHING`, id, ids, langs); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO personalized_messages (campaign_id, customer_id, language, status, reason)
-			SELECT $1, u.id, u.lang, 'fallback', $4 FROM unnest($2::bigint[], $3::text[]) AS u(id, lang)
-			ON CONFLICT (campaign_id, customer_id) DO NOTHING`, id, fallbackIDs, fallbackLang, reason)
-		if err != nil {
-			return err
-		}
-		_, err = tx.Exec(ctx, `UPDATE campaigns SET individual_applied_at = COALESCE(individual_applied_at, now()) WHERE id = $1`, id)
+		_, err := tx.Exec(ctx, `UPDATE campaigns SET individual_applied_at = COALESCE(individual_applied_at, now()) WHERE id = $1`, id)
 		return err
 	})
 	if err != nil {
@@ -451,7 +509,7 @@ func (s *Service) personalizePending(ctx context.Context, c Campaign, base Draft
 	if !ok { // left the audience since Apply: use the template
 		f := fallbackMessage(segmentation.Member{ID: cid})
 		f.Reason = "No longer in the audience."
-		_ = s.storePersonal(ctx, c.ID, f, hash, true)
+		_ = s.storePersonal(ctx, c.ID, withBase(f, base), hash, true)
 		return
 	}
 	h, err := s.aud.RecentActivity(ctx, m)
@@ -474,6 +532,10 @@ func (s *Service) personalizePending(ctx context.Context, c Campaign, base Draft
 		return // stopped: stays pending
 	case err != nil:
 		msg.Status, msg.Reason = "failed", userError(err)
+	}
+	if msg.Status != "generated" { // the customer gets the base message: show it
+		msg.Version = Version{}
+		msg = withBase(msg, base)
 	}
 	if err := s.storePersonal(ctx, c.ID, msg, hash, true); err != nil {
 		s.log.Error("individual generation: store", "campaign", c.ID, "customer", cid, "error", err)

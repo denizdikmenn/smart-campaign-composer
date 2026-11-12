@@ -135,7 +135,7 @@ func (s *Service) review(ctx context.Context, v View, version int) (Review, erro
 		in := v.Individual
 		switch {
 		case !in.Applied:
-			block("individual", "not_applied", "Confirm “Apply to all” to generate individual messages, or switch back to Standard.")
+			block("individual", "not_applied", "Confirm “Personalize %d customers” to write the individual messages, or switch back to Standard.", MaxIndividual)
 		case in.Running || in.Pending > 0:
 			block("individual", "individual_running", "Individual messages are still being generated (%d pending).", in.Pending)
 		}
@@ -144,6 +144,9 @@ func (s *Service) review(ctx context.Context, v View, version int) (Review, erro
 		}
 		if in.Fallback > 0 {
 			warn("individual", "individual_fallback", "%d customers have too little history and get the base message.", in.Fallback)
+		}
+		if in.Applied {
+			warn("individual", "individual_limit", "Individual messages are written for %d picked customers (limit %d in this demo); everyone else in the audience gets the base message.", in.Generated, in.Limit)
 		}
 		if in.Stale > 0 {
 			warn("individual", "individual_stale", "%d individual messages were written from an earlier version of the base draft.", in.Stale)

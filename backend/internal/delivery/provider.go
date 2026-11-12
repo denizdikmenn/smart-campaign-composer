@@ -26,6 +26,9 @@ type Request struct {
 	To      string // phone (E.164) or email address
 	Subject string
 	Body    string
+	// ManualRetry marks a send the marketer retried by hand. The mock
+	// simulates no failures for it (the demo's retried messages go out).
+	ManualRetry bool
 }
 
 // Response is the provider's HTTP-style answer. 2xx means accepted (not
@@ -102,13 +105,13 @@ func (m *Mock) Send(ctx context.Context, req Request) (Response, error) {
 			return Response{}, ctx.Err()
 		}
 	}
-	if m.Recipients != nil {
+	if m.Recipients != nil && !req.ManualRetry {
 		if resp, ok := m.Recipients(req, call); ok {
 			return resp, nil
 		}
 	}
 	fault := FaultNone
-	if m.Faults != nil {
+	if m.Faults != nil && !req.ManualRetry {
 		fault = m.Faults(req, call)
 	}
 	prefix := strings.ToUpper(m.Channel)

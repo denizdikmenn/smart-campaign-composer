@@ -17,10 +17,10 @@ func TestManualRetry(t *testing.T) {
 	key := func(c int) string { return fmt.Sprintf("campaign-1/customer-%d/sms", c) }
 	four := func(f Fault) []Fault { return []Fault{f, f, f, f} }
 	script := map[string][]Fault{
-		key(1): four(FaultServer),       // exhausts, then recovers on a manual retry
-		key(2): {FaultReject},           // permanent
-		key(4): four(FaultLostResponse), // accepted on call 1, but no response ever arrived
-		key(5): four(FaultServer),       // exhausts; consent is withdrawn before the manual retry
+		key(1): append(four(FaultServer), four(FaultServer)...), // would fail forever, but a manual retry is not faked
+		key(2): {FaultReject},                                   // permanent
+		key(4): four(FaultLostResponse),                         // accepted on call 1, but no response ever arrived
+		key(5): four(FaultServer),                               // exhausts; consent is withdrawn before the manual retry
 	}
 	mock := &Mock{Pool: pool, Channel: "sms", Faults: func(req Request, call int) Fault {
 		if s := script[req.Key]; call <= len(s) {
@@ -80,7 +80,7 @@ func TestManualRetry(t *testing.T) {
 		return r
 	}
 	if r := get(1); r.status != StatusSent || r.attempts != 5 {
-		t.Errorf("customer 1 after manual retry: %+v", r)
+		t.Errorf("customer 1: a manually retried message is sent on its first try: %+v", r)
 	}
 	if n := count(t, pool, `SELECT count(*) FROM delivery_attempts a JOIN deliveries d ON d.id = a.delivery_id
 		WHERE d.customer_id = 1 AND a.manual AND a.attempt = 5`); n != 1 {

@@ -65,7 +65,8 @@ they survive refreshes and worker restarts. Approved campaigns are listed on the
 The page also lists every message (recipient, channel, status, attempts, last error) with filters and paging. **History**
 shows each provider call: time, latency, HTTP status, code and outcome. **Retry** requeues one message that failed
 temporarily, and **Retry N failed** requeues all of them. A retry reuses the same delivery record and idempotency key,
-starts a new round of up to 4 attempts, and is checked for consent again. Permanent rejections, already accepted
+starts a new round of up to 4 attempts, and is checked for consent again. In this demo a manually retried message isn't
+subjected to simulated failures, so it goes out. Permanent rejections, already accepted
 messages and skips can't be retried. Audience members who haven't consented to an enabled channel are recorded as
 **skipped** ("not eligible: no SMS consent") rather than silently left out.
 
@@ -89,7 +90,9 @@ JSON unless noted.
 | `PUT /api/campaigns/{id}/variants` | `{versions: [a, b, c]}` sets 2–3 drafts as Variants A–C; `[]` ends the A/B test |
 | `PUT /api/campaigns/{id}/personalization` | `{mode: standard\|groups\|individual, base_version}` |
 | `POST …/groups/propose`, `GET …/groups/estimate`, `POST …/groups/generate`, `GET …/groups/{pos}/examples`, `PUT …/groups/{pos}` | Behavioral groups: propose (1 AI call), cost estimate, background generation (one call per group), representative members, edits |
-| `GET …/individual/candidates`, `POST …/individual/sample`, `GET …/individual/estimate`, `POST …/individual/apply`, `POST …/individual/stop` | Individual personalization: sample, estimate, explicit Apply to all (background, 4 concurrent calls), stop/resume |
+
+Behavioral groups are planned with a **message angle** each: how the group's message should differ, grounded only in its rules. Each group's content call gets the brief, the base message, the planned angle, what's guaranteed for every member (audience and group rules), the earlier groups it excludes (first match wins), the group's actual behavioral profile (tendencies, never stated as facts) and the other groups' angles. It returns the messages plus a **rationale** shown on the group card ("Why this message"). It may answer that a group has no honest reason for a different message instead of inventing one. Deterministic warnings flag groups planned with the same angle, near-identical messages, a group that repeats the base message, and cart mentions a group's rules don't guarantee.
+| `GET …/individual/candidates`, `POST …/individual/sample`, `GET …/individual/estimate`, `POST …/individual/apply`, `POST …/individual/stop` | Individual personalization, capped at 10 customers in this demo (samples included; the most active customers with history). Everyone else gets the base draft, and picks that weren't personalized show it too. Sample, estimate, explicit confirm (background, 4 concurrent calls), stop/resume |
 | `GET /api/campaigns/{id}/review?version=` | Consistency gate, recipient plan (per variant/group/language/channel/source) and AI cost |
 | `POST /api/campaigns/{id}/approve` | `{version}` (Standard draft; 0 with variants): re-checks audience and gate, then freezes a snapshot (`409` once approved, `422` with `issues` if invalid). Sends nothing |
 | `GET /api/campaigns` | The 20 most recent campaigns with approval and delivery status |

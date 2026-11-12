@@ -189,7 +189,7 @@ const multiLang = computed(() => previews.value.some((b) => b.channels.some((c) 
           </p>
           <p class="muted">
             <span class="lang-row"><LangChip v-for="(n, l) in review.plan.by_language" :key="l" :lang="String(l)" :count="n" /></span>
-            <template v-for="(n, s) in review.plan.by_source" :key="s">{{ sourceLabel[String(s)] }} {{ number.format(n) }} · </template>
+            <span class="by-source">{{ Object.entries(review.plan.by_source).map(([k, n]) => `${sourceLabel[k] ?? k} ${number.format(n)}`).join(' · ') }}</span>
           </p>
         </div>
         <div class="box">
@@ -225,7 +225,7 @@ const multiLang = computed(() => previews.value.some((b) => b.channels.some((c) 
         <h3>Fix before approving</h3>
         <ul>
           <li v-for="i in blocking" :key="i.scope + i.code + i.language + i.message">
-            <strong v-if="i.scope">{{ i.scope }}<template v-if="i.language"> <LangChip :lang="i.language" plain /></template>:</strong> {{ i.message }}
+            <span v-if="i.scope" class="issue-scope"><strong>{{ i.scope }}</strong><LangChip v-if="i.language" :lang="i.language" /></span> {{ i.message }}
           </li>
         </ul>
       </div>
@@ -233,7 +233,7 @@ const multiLang = computed(() => previews.value.some((b) => b.channels.some((c) 
         <h3>Check these</h3>
         <ul>
           <li v-for="i in warnings" :key="i.scope + i.code + i.language + i.message">
-            <strong v-if="i.scope">{{ i.scope }}<template v-if="i.language"> <LangChip :lang="i.language" plain /></template>:</strong> {{ i.message }}
+            <span v-if="i.scope" class="issue-scope"><strong>{{ i.scope }}</strong><LangChip v-if="i.language" :lang="i.language" /></span> {{ i.message }}
           </li>
         </ul>
 
@@ -414,12 +414,12 @@ const multiLang = computed(() => previews.value.some((b) => b.channels.some((c) 
 }
 .channels {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 10px;
 }
 .preview-card {
   display: grid;
-  grid-template-rows: auto 1fr auto;
   gap: 8px;
   padding: 12px 14px;
   font-size: 13px;
@@ -453,6 +453,20 @@ const multiLang = computed(() => previews.value.some((b) => b.channels.some((c) 
   stroke-linejoin: round;
 }
 /* Segmented language switch: reads as a setting of this card, not a new item. */
+.issue-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+}
+.issue-scope::after {
+  content: ':';
+  margin-left: -4px;
+}
+.by-source {
+  display: block;
+  margin-top: 4px;
+}
 .lang-row {
   display: inline-flex;
   flex-wrap: wrap;

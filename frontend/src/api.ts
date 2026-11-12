@@ -387,6 +387,12 @@ export interface Group {
   size: number
   languages: Record<string, number>
   content: Record<string, Version>
+  /** Message strategy planned when the groups were proposed (empty for "everyone else"). */
+  angle: string
+  /** How the generated message builds on the group's behavior. */
+  rationale: string
+  /** false: no honest reason for a different message was found (null before generation). */
+  differentiated: boolean | null
   status: 'proposed' | 'generating' | 'generated' | 'failed'
   error?: string
   stale: boolean
@@ -414,6 +420,9 @@ export interface IndividualSummary {
   stale: number
   running: boolean
   applied: boolean
+  /** Most customers that get an individually written message; everyone else gets the base draft. */
+  limit: number
+  /** Every picked customer (at most limit). */
   samples: PersonalMessage[]
 }
 

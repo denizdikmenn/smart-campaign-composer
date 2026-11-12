@@ -67,7 +67,10 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
 
 <template>
   <div class="individual">
-    <p class="muted">Try one customer first. Customers without history get the base draft.</p>
+    <p class="muted">
+      Claude writes messages for at most {{ progress.limit }} customers (samples included): the most active ones with history.
+      Everyone else in the audience gets the base draft.
+    </p>
 
     <!-- 1. Sample -->
     <div v-if="!approved" class="row">
@@ -115,7 +118,8 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
           <LangChip :lang="sample.message.language" />
         </h3>
         <p v-if="sample.message.reason" class="muted">{{ sample.message.reason }}</p>
-        <template v-if="sample.message.status === 'generated'">
+        <p v-if="sample.message.status !== 'generated'" class="muted">They get the base draft:</p>
+        <template v-if="sample.message.content.sms_body">
           <p class="pre bubble">{{ sample.message.content.sms_body }}</p>
           <p><strong>{{ sample.message.content.email_subject }}</strong></p>
           <p class="pre body">{{ sample.message.content.email_body }}</p>
@@ -127,18 +131,18 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
     <div v-if="work && !approved && !running && work.remaining > 0" class="box cost">
       <div>
         <p>
-          <strong>{{ number.format(work.remaining) }} recipients</strong> · {{ number.format(work.estimate.calls) }} AI calls ·
+          <strong>{{ number.format(work.remaining) }} more customers</strong> (up to {{ progress.limit }} in total) · {{ number.format(work.estimate.calls) }} AI calls ·
           ~{{ formatTokens(work.estimate.input_tokens + work.estimate.output_tokens) }} tokens ·
           <strong>≈ {{ formatUSD(work.estimate.usd) }}</strong> <span class="muted">projected</span>
         </p>
-        <p v-if="work.fallbacks" class="muted">{{ number.format(work.fallbacks) }} more get the base draft.</p>
+        <p v-if="work.fallbacks" class="muted">The other {{ number.format(work.fallbacks) }} people in the audience get the base draft.</p>
       </div>
       <div v-if="confirming" class="confirm">
         <button type="button" class="btn" @click="confirming = false">Cancel</button>
         <button type="button" class="btn primary" :disabled="!!store.busy.value" @click="apply">Confirm: generate {{ number.format(work.remaining) }} messages</button>
       </div>
       <button v-else type="button" class="btn cta" :disabled="progress.generated === 0" :title="progress.generated === 0 ? 'Generate and review a sample first' : undefined" @click="confirming = true">
-        {{ progress.applied ? 'Resume' : 'Apply to all' }}
+        {{ progress.applied ? 'Resume' : `Personalize ${progress.limit} customers` }}
       </button>
     </div>
 
@@ -146,7 +150,7 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
     <AiProgress
       v-if="running"
       title="Claude is writing individual messages"
-      :detail="`${number.format(done)} of ${number.format(progress.total)} recipients · ${pct}%`"
+      :detail="`${number.format(done)} of ${number.format(progress.total)} picked customers · ${pct}%`"
       :progress="progress.total ? done / progress.total : undefined"
     >
       <button type="button" class="btn" :disabled="!!store.busy.value" :aria-busy="store.busy.value === 'Stopping…'" @click="stop">Stop</button>
@@ -159,15 +163,15 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
       </p>
       <div v-if="!running" class="bar" role="progressbar" :aria-valuenow="pct" aria-valuemin="0" aria-valuemax="100"><span :style="{ width: pct + '%' }" /></div>
       <p class="muted">
-        {{ number.format(progress.generated) }} generated · {{ number.format(progress.failed) }} failed ·
-        {{ number.format(progress.fallback) }} base draft · {{ number.format(progress.pending) }} pending ·
+        {{ number.format(progress.generated) }} of {{ progress.limit }} personalized · {{ number.format(progress.failed) }} failed ·
+        {{ number.format(progress.fallback) }} base draft · {{ number.format(progress.pending) }} pending · everyone else gets the base draft ·
         ≈ {{ formatUSD(view.cost.by_kind.individual?.usd) }} projected
       </p>
     </div>
 
     <!-- 4. Representative outputs -->
     <details v-if="progress.samples.length" class="outputs">
-      <summary>Review generated messages ({{ progress.samples.length }} most recent)</summary>
+      <summary>Picked customers ({{ progress.samples.length }} of {{ progress.limit }})</summary>
       <ul>
         <li v-for="m in progress.samples" :key="m.customer_id" class="box">
           <p>
@@ -175,7 +179,8 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
             <span class="chip" :class="{ ok: m.status === 'generated', bad: m.status === 'failed' }">{{ m.status }}</span>
           </p>
           <p v-if="m.reason" class="muted">{{ m.reason }}</p>
-          <p v-if="m.status === 'generated'" class="pre">{{ m.content.sms_body }}</p>
+          <p v-if="m.status !== 'generated' && m.content.sms_body" class="muted">Base draft:</p>
+          <p v-if="m.content.sms_body" class="pre">{{ m.content.sms_body }}</p>
         </li>
       </ul>
     </details>

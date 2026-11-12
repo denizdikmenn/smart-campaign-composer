@@ -133,7 +133,7 @@ func (w *Worker) process(j Job, p Provider, lim *limiter) {
 	}
 	sendCtx, cancelSend := context.WithTimeout(ctx, w.cfg.SendTimeout)
 	start := time.Now()
-	resp, err := p.Send(sendCtx, Request{Key: j.Key(), Channel: j.Channel, To: to, Subject: j.Subject, Body: j.Body})
+	resp, err := p.Send(sendCtx, Request{Key: j.Key(), Channel: j.Channel, To: to, Subject: j.Subject, Body: j.Body, ManualRetry: j.RetryBase > 0})
 	a := &Attempt{StartedAt: start, Latency: time.Since(start), Status: resp.Status, MessageID: resp.MessageID}
 	cancelSend()
 	if err != nil {

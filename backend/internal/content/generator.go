@@ -62,7 +62,7 @@ type Generator interface {
 	Generate(ctx context.Context, req Request, onDelta func(string)) (Result, error)
 	Translate(ctx context.Context, req TranslateRequest) (VersionsResult, error)
 	ProposeGroups(ctx context.Context, req GroupsRequest) (GroupsResult, error)
-	GroupContent(ctx context.Context, req GroupContentRequest) (VersionsResult, error)
+	GroupContent(ctx context.Context, req GroupContentRequest) (GroupContentResult, error)
 	Personalize(ctx context.Context, req PersonalizeRequest) (PersonalResult, error)
 	Source() string
 	Model() string

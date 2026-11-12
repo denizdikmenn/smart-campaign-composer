@@ -20,8 +20,11 @@ const loading = ref(true)
 const error = ref('')
 let ctl: AbortController | null = null
 
-onMounted(async () => {
+async function load() {
+  ctl?.abort()
   ctl = new AbortController()
+  loading.value = true
+  error.value = ''
   try {
     customers.value = await previewCustomers(props.audience, ctl.signal)
   } catch (e) {
@@ -30,7 +33,8 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+onMounted(load)
 onUnmounted(() => ctl?.abort())
 
 // Prefer people who actually receive this channel in this language.
@@ -51,7 +55,7 @@ const unresolved = (s: string) => /\{\{|\}\}/.test(s)
     <ul v-if="loading" class="list" aria-label="Loading sample recipients" role="status">
       <li v-for="n in 3" :key="n"><div class="skeleton-line short" /><div class="skeleton" style="height: 56px" /></li>
     </ul>
-    <p v-else-if="error" class="error" role="alert"><span class="state failed">Failed</span> {{ error }}</p>
+    <div v-else-if="error" class="fail" role="alert"><span class="state failed">Failed</span><p class="msg">Couldn’t load sample recipients.</p><button type="button" class="btn" @click="load">Retry</button></div>
     <p v-else-if="!sample.length" class="note">No customers to preview.</p>
     <ul v-else class="list">
       <li v-for="c in sample" :key="c.email">

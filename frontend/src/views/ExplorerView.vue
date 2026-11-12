@@ -290,7 +290,7 @@ onUnmounted(() => {
       </template>
       <div v-else-if="summaryError" class="alert" role="alert">
         <span>Couldn't load metrics: {{ summaryError }}</span>
-        <button @click="loadSummary">Retry</button>
+        <button type="button" @click="loadSummary">Retry</button>
       </div>
       <template v-else>
         <div v-for="n in 7" :key="n" class="skeleton card-skeleton" />
@@ -318,7 +318,7 @@ onUnmounted(() => {
       </template>
       <div v-else-if="audienceError" class="alert" role="alert">
         <span>Couldn't load audiences: {{ audienceError }}</span>
-        <button @click="loadAudiences">Retry</button>
+        <button type="button" @click="loadAudiences">Retry</button>
       </div>
       <template v-else>
         <div v-for="n in 6" :key="n" class="skeleton card-skeleton tall" />

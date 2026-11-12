@@ -69,7 +69,7 @@ type Campaign struct {
 	Languages       []string        `json:"languages"` // content languages, base first
 	BaseLanguage    string          `json:"base_language"`
 	GroupsNote      json.RawMessage `json:"groups_note,omitempty"`
-	// IndividualAppliedAt is when "Apply to all" was confirmed.
+	// IndividualAppliedAt is when individual generation was confirmed.
 	IndividualAppliedAt *time.Time      `json:"individual_applied_at"`
 	ApprovedVersion     *int            `json:"approved_version"`
 	ApprovedAt          *time.Time      `json:"approved_at"`

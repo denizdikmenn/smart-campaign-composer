@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onActivated, onMounted, ref } from 'vue'
 import { fetchSummary, listCampaigns, type CampaignSummary, type Summary } from '../api'
-import { deliveryHref, href } from '../router'
+import { deliveryHref, editHref, href } from '../router'
 
 const number = new Intl.NumberFormat('en-US')
 const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0)
@@ -92,7 +92,7 @@ const STEPS = [
       <h2 id="recent-title">Recent campaigns</h2>
       <ul>
         <li v-for="c in campaigns" :key="c.id">
-          <component :is="c.status === 'approved' ? 'a' : 'div'" class="row" :href="c.status === 'approved' ? deliveryHref(c.id) : undefined">
+          <a class="row" :href="c.status === 'approved' ? deliveryHref(c.id) : editHref(c.id)">
             <span class="what">
               <strong>{{ c.audience || 'Campaign' }}</strong>
               <span class="brief">{{ c.brief }}</span>
@@ -104,10 +104,10 @@ const STEPS = [
               </span>
               <span class="muted">{{ date(c.created_at) }}</span>
             </span>
-          </component>
+          </a>
         </li>
       </ul>
-      <p class="muted">Approved campaigns open their delivery page. Resuming drafts isn't available yet.</p>
+      <p class="muted">Drafts open where you left off; approved campaigns open their delivery page.</p>
     </section>
 
     <div v-else class="empty">

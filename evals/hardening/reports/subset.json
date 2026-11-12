@@ -1,0 +1,391 @@
+{
+  "duration_s": 57.164468792,
+  "input_tokens": 29953,
+  "model": "claude-haiku-5-5",
+  "output_tokens": 9385,
+  "results": [
+    {
+      "id": "B03",
+      "area": "Behavioral groups",
+      "name": "Overlapping behaviors",
+      "intent": "Half are frequent buyers who also abandoned carts recently; others split between lapsed and new.",
+      "expected": "Groups (if any) validate, are ordered so the overlap is resolved intentionally, and descriptions are accurate under first-match assignment.",
+      "status": "REVIEW",
+      "review": "Read descriptions vs. first-match order. Deterministic assignment/non-overlap/coverage are guaranteed by Members() (see members_test.go) and need Postgres: NOT RUN here.",
+      "actual": "outcome=groups; Three behavioral groups separate lapsed, cart-active and recently active repeat customers, each needing a different call to action for the l…; groups: Lapsed repeat buyers [order count ≥ 2; last order more than 90 days ago] angle: Welcome them back and lead with the loyalty points programme as a reason to return, inviting them to start shopping agai… | Cart-active first-timers [order count = 0; last cart within 30 days] angle: Explain that points begin with their first purchase and invite them to complete the cart they already started. | Recent repeat buyers [order count ≥ 2; last order within 89 days] angle: Thank them for their loyalty and highlight how the points programme rewards their next order, encouraging them to keep b…",
+      "outputs": [
+        {
+          "group": {
+            "name": "Lapsed repeat buyers",
+            "description": "Repeat buyers who have not ordered in over three months.",
+            "angle": "Welcome them back and lead with the loyalty points programme as a reason to return, inviting them to start shopping again to begin earning.",
+            "match": "all",
+            "conditions": [
+              {
+                "field": "order_count",
+                "op": "gte",
+                "strings": [],
+                "numbers": [
+                  2
+                ],
+                "category": "",
+                "within_days": 0
+              },
+              {
+                "field": "days_since_last_order",
+                "op": "gte",
+                "strings": [],
+                "numbers": [
+                  90
+                ],
+                "category": "",
+                "within_days": 0
+              }
+            ]
+          },
+          "rules_text": "order count ≥ 2; last order more than 90 days ago",
+          "valid": true
+        },
+        {
+          "group": {
+            "name": "Cart-active first-timers",
+            "description": "Recent cart users who have never placed an order.",
+            "angle": "Explain that points begin with their first purchase and invite them to complete the cart they already started.",
+            "match": "all",
+            "conditions": [
+              {
+                "field": "order_count",
+                "op": "eq",
+                "strings": [],
+                "numbers": [
+                  0
+                ],
+                "category": "",
+                "within_days": 0
+              },
+              {
+                "field": "days_since_last_cart",
+                "op": "lte",
+                "strings": [],
+                "numbers": [
+                  30
+                ],
+                "category": "",
+                "within_days": 0
+              }
+            ]
+          },
+          "rules_text": "order count = 0; last cart within 30 days",
+          "valid": true
+        },
+        {
+          "group": {
+            "name": "Recent repeat buyers",
+            "description": "Repeat buyers who ordered within the last three months.",
+            "angle": "Thank them for their loyalty and highlight how the points programme rewards their next order, encouraging them to keep buying.",
+            "match": "all",
+            "conditions": [
+              {
+                "field": "order_count",
+                "op": "gte",
+                "strings": [],
+                "numbers": [
+                  2
+                ],
+                "category": "",
+                "within_days": 0
+              },
+              {
+                "field": "days_since_last_order",
+                "op": "lte",
+                "strings": [],
+                "numbers": [
+                  89
+                ],
+                "category": "",
+                "within_days": 0
+              }
+            ]
+          },
+          "rules_text": "order count ≥ 2; last order within 89 days",
+          "valid": true
+        }
+      ],
+      "tokens": [
+        2522,
+        1323
+      ],
+      "extra": {
+        "profile": "Reachable customers: 60\nLifetime orders: none 25%, 1 order 0%, 2-3 orders 25%, 4+ orders 50%\nLifetime spend in TRY (buyers only): p25 900, median 6630, p75 7620, max 8610\nDays since last order (buyers only): p25 8, median 12, p75 233, max 244\nDays since last activity: p25 2, median 2, p75 3, max 194\nAdded to cart in the last 30 days: 75%\nJoined in the last 30 days: 25%\nLanguages: tr 100%\nTop cities: Istanbul 100%"
+      }
+    },
+    {
+      "id": "C01",
+      "area": "Behavioral group content",
+      "name": "Lapsed electronics buyers (reported case)",
+      "intent": "Win-back with no offer; groups by cart intent, value, dormancy; Turkish and English.",
+      "expected": "Four clearly different messages: cart reminder only for the cart group, a valued-customer tone for high spenders (no cart), rediscovery of what's new for the long dormant, a plain general message for everyone else. No offers invented.",
+      "status": "PASS",
+      "actual": "Recent cart intent: {{first_name}}, sepetinizdeki elektronik ürünler sizi bekliyor. Satın almayı tamamlamak ister misiniz? | High-value lapsed buyers: {{first_name}}, değerli müşterimiz olarak sizi yeniden ağırlamak isteriz. Güncel elektronik gamımızı keşfetmen… | Long-dormant electronics buyers: {{first_name}}, son alışverişinizden bu yana elektronik gamımızda yeniler var. Neler çıktığına göz atmak ister… | Everyone else: {{first_name}}, elektronik ürünlerimize geri dönmeniz için sizi özledik. Ürün gamımıza göz atmak ister misiniz…",
+      "outputs": [
+        {
+          "differentiated": true,
+          "group": "Recent cart intent",
+          "language": "tr",
+          "message": {
+            "sms_body": "{{first_name}}, sepetinizdeki elektronik ürünler sizi bekliyor. Satın almayı tamamlamak ister misiniz?",
+            "email_subject": "Sepetinizdeki elektronik ürünler sizi bekliyor",
+            "email_body": "Merhaba {{first_name}},\n\nSepetinize eklediğiniz ürünler hâlâ sizi bekliyor olabilir. Bir süre önce bu ürünlere göz atmış, ancak siparişi tamamlamamıştınız.\n\nEğer bu ürünleri hâlâ düşünüyorsanız, sepetinizi kaldığınız yerden tamamlayabilirsiniz. Ürünlerinizin durumunu kontrol etmek ve satın alma işleminizi bitirmek için hazırız.\n\nSepetinizi tamamlamak için aşağıdaki bağlantıya tıklayabilirsiniz.\n\nSevgilerle,\nThe team"
+          },
+          "rationale": "Builds on the guaranteed cart activity not followed by a purchase and the 90+ days since last order; the angle reminds members of items left in their cart and invites them to complete the purchase, which fits the campaign's win-back goal."
+        },
+        {
+          "differentiated": true,
+          "group": "Recent cart intent",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, the electronics in your cart are still waiting. Want to complete your purchase?",
+            "email_subject": "The electronics in your cart are still waiting",
+            "email_body": "Hello {{first_name}},\n\nThe electronics you added to your cart may still be waiting for you. You looked at these products before, but the order was not completed.\n\nIf you still have them in mind, you can pick up right where you left off. We are happy to help you check your items and finish your purchase.\n\nUse the link below to complete your cart.\n\nWarm regards,\nThe team"
+          },
+          "rationale": "Builds on the guaranteed cart activity not followed by a purchase and the 90+ days since last order; the angle reminds members of items left in their cart and invites them to complete the purchase, which fits the campaign's win-back goal."
+        },
+        {
+          "differentiated": true,
+          "group": "High-value lapsed buyers",
+          "language": "tr",
+          "message": {
+            "sms_body": "{{first_name}}, değerli müşterimiz olarak sizi yeniden ağırlamak isteriz. Güncel elektronik gamımızı keşfetmeniz için davetlisiniz.",
+            "email_subject": "Sizi ağırlamak isteriz: güncel elektronik gamımız sizi bekliyor",
+            "email_body": "Merhaba {{first_name}},\n\nGeçmişte elektronik ürünlerimizi tercih eden değerli müşterilerimizden biri olarak, sizi yeniden markamızla buluşturmak istiyoruz.\n\nGüncel elektronik gamımızı sizin için inceleyebilir, beklentilerinize en uygun olanı birlikte belirleyebiliriz. Her adımda size özenle eşlik etmek bizim için bir önceliktir.\n\nSizi yeniden aramızda görmek bizim için büyük bir memnuniyet olacaktır.\n\nSaygılarımızla,\nThe team"
+          },
+          "rationale": "The message builds on the guaranteed fact that these customers bought electronics before and have been inactive for over 90 days, and it addresses them as valued past customers with a warmer, more premium tone. The call to action invites them to explore the current electronics range, which fits the goal of winning them back without implying any cart activity or specific spend."
+        },
+        {
+          "differentiated": true,
+          "group": "High-value lapsed buyers",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, as a valued customer, we would be delighted to welcome you back. Explore our current electronics range today.",
+            "email_subject": "A warm invitation to explore our current electronics range",
+            "email_body": "Hello {{first_name}},\n\nAs one of our valued customers in electronics, we would be delighted to welcome you back to our store.\n\nWe invite you to explore our current electronics range. Our team would be glad to help you find exactly what suits your expectations, with the same care you have come to expect from us.\n\nWe look forward to welcoming you back.\n\nWarm regards,\nThe team"
+          },
+          "rationale": "The message builds on the guaranteed fact that these customers bought electronics before and have been inactive for over 90 days, and it addresses them as valued past customers with a warmer, more premium tone. The call to action invites them to explore the current electronics range, which fits the goal of winning them back without implying any cart activity or specific spend."
+        },
+        {
+          "differentiated": true,
+          "group": "Long-dormant electronics buyers",
+          "language": "tr",
+          "message": {
+            "sms_body": "{{first_name}}, son alışverişinizden bu yana elektronik gamımızda yeniler var. Neler çıktığına göz atmak ister misiniz?",
+            "email_subject": "Son ziyaretinizden bu yana neler değişti?",
+            "email_body": "Merhaba {{first_name}},\n\nEn son alışverişinizin üzerinden bir yıldan uzun zaman geçti. Bu sürede elektronik gamımız epey değişti.\n\nYeni çıkan ürünleri ve sizin için ilginç olabilecek yenilikleri görmek ister misiniz? Elektronik kategorimize bir göz atarak neyin değiştiğini kendiniz keşfedebilirsiniz.\n\nMarkamızı yeniden keşfetmeniz için bekliyoruz.\n\nSevgilerle,\nThe team"
+          },
+          "rationale": "Every member bought electronics and last ordered more than 365 days ago, so the message builds on a long gap and invites them to rediscover the brand and see what is new since their last visit. The call to action asks them to browse the current electronics range, distinct from the cart reminder and premium-tone groups."
+        },
+        {
+          "differentiated": true,
+          "group": "Long-dormant electronics buyers",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, our electronics range has new arrivals since your last order. Want to see what's new?",
+            "email_subject": "See what's new in electronics since your last visit",
+            "email_body": "Hello {{first_name}},\n\nIt has been more than a year since your last order, and a lot has changed in our electronics range since then.\n\nWould you like to see what is new? Take a look at our electronics category and rediscover what we offer today.\n\nWe look forward to welcoming you back.\n\nBest regards,\nThe team"
+          },
+          "rationale": "Every member bought electronics and last ordered more than 365 days ago, so the message builds on a long gap and invites them to rediscover the brand and see what is new since their last visit. The call to action asks them to browse the current electronics range, distinct from the cart reminder and premium-tone groups."
+        },
+        {
+          "differentiated": false,
+          "group": "Everyone else",
+          "language": "tr",
+          "message": {
+            "sms_body": "{{first_name}}, elektronik ürünlerimize geri dönmeniz için sizi özledik. Ürün gamımıza göz atmak ister misiniz?",
+            "email_subject": "Sizi özledik, elektronik dünyasına tekrar hoş geldiniz",
+            "email_body": "Merhaba {{first_name}},\n\nBir süredir sizi göremedik ve sizi özledik. Daha önce elektronik ürünlerimizi tercih ettiğiniz için teşekkür ederiz.\n\nElektronik ürün gamımıza yeniden göz atmak isterseniz, ihtiyacınıza uygun ürünleri bulmanız için size yardımcı olmaktan memnuniyet duyarız.\n\nSizi tekrar aramızda görmek için sabırsızlanıyoruz.\n\nSevgilerle,\nThe team"
+          },
+          "rationale": "This catch-all group shares only the guaranteed facts (bought electronics, last order over 90 days ago), so the message stays general and close to the base message with no behavioral assumptions. The angle does not differ from any other group's, so no distinct version is manufactured."
+        },
+        {
+          "differentiated": false,
+          "group": "Everyone else",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, we miss you at our electronics range. Would you like to take a look at what we offer?",
+            "email_subject": "We miss you, welcome back to electronics",
+            "email_body": "Hello {{first_name}},\n\nWe haven't seen you in a while and we miss you. Thank you for choosing our electronics products in the past.\n\nIf you'd like to browse our electronics range again, we'd be happy to help you find products that suit your needs.\n\nWe look forward to welcoming you back.\n\nWarm regards,\nThe team"
+          },
+          "rationale": "This catch-all group shares only the guaranteed facts (bought electronics, last order over 90 days ago), so the message stays general and close to the base message with no behavioral assumptions. The angle does not differ from any other group's, so no distinct version is manufactured."
+        }
+      ],
+      "tokens": [
+        9356,
+        4292
+      ],
+      "extra": {
+        "Everyone else": "differentiated=false; This catch-all group shares only the guaranteed facts (bought electronics, last order over 90 days ago), so the message stays general and close to the base message with no behavioral assumptions. The angle does not differ from any other group's, so no distinct version is manufactured.",
+        "High-value lapsed buyers": "differentiated=true; The message builds on the guaranteed fact that these customers bought electronics before and have been inactive for over 90 days, and it addresses them as valued past customers with a warmer, more premium tone. The call to action invites them to explore the current electronics range, which fits the goal of winning them back without implying any cart activity or specific spend.",
+        "Long-dormant electronics buyers": "differentiated=true; Every member bought electronics and last ordered more than 365 days ago, so the message builds on a long gap and invites them to rediscover the brand and see what is new since their last visit. The call to action asks them to browse the current electronics range, distinct from the cart reminder and premium-tone groups.",
+        "Recent cart intent": "differentiated=true; Builds on the guaranteed cart activity not followed by a purchase and the 90+ days since last order; the angle reminds members of items left in their cart and invites them to complete the purchase, which fits the campaign's win-back goal."
+      }
+    },
+    {
+      "id": "C02",
+      "area": "Behavioral group content",
+      "name": "Offer campaign: buyers vs never-ordered carters",
+      "intent": "A coded discount for repeat buyers, one-time buyers and people who carted but never ordered.",
+      "expected": "Offer and code kept exactly in every group; repeat buyers thanked as regulars, one-time buyers given a reason to come back, never-ordered carters invited to make a first order (never welcomed back).",
+      "status": "PASS",
+      "actual": "Repeat buyers: {{first_name}}, thanks for coming back again and again. Take 30% off everything with code SPRING30 until Sunda… | One-time buyers: {{first_name}}, you've ordered with us once, so pick your next one: 30% off everything with code SPRING30 unti… | Carted, never ordered: {{first_name}}, the items you were looking at are 30% off with code SPRING30 until Sunday. Finish your first o…",
+      "outputs": [
+        {
+          "differentiated": true,
+          "group": "Repeat buyers",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, thanks for coming back again and again. Take 30% off everything with code SPRING30 until Sunday.",
+            "email_subject": "Thanks for coming back: 30% off until Sunday",
+            "email_body": "Hi {{first_name}},\n\nYou have ordered from us again and again, and we wanted to say thank you for coming back. As one of our regulars, you get first pick of our spring sale.\n\nTake 30% off everything with code SPRING30 until Sunday, and stock up on the pieces you already love.\n\nThanks for being part of our store."
+          },
+          "rationale": "Builds on the guaranteed facts that every member has four or more orders and was active in the last 90 days, so the message thanks them as regulars and points them to the sale on what they keep coming back for. The call to action invites them to shop their usual favorites with the same code, without implying cart activity or single-order history."
+        },
+        {
+          "differentiated": true,
+          "group": "One-time buyers",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, you've ordered with us once, so pick your next one: 30% off everything with code SPRING30 until Sunday.",
+            "email_subject": "Your second order is 30% off with SPRING30",
+            "email_body": "Hi {{first_name}},\n\nYou have already placed an order with us, so you know what we offer. Now it is a good time to choose your second one.\n\nAll spring sale: 30% off everything with code SPRING30, until Sunday.\n\nTake a look at what you would like to try next."
+          },
+          "rationale": "Every member has placed exactly one order and has been active in the last 90 days, so the message builds on having tried the store once and invites a second order while the spring sale runs. The call to action asks them to come back and choose something new, which fits the goal of a second order."
+        },
+        {
+          "differentiated": true,
+          "group": "Carted, never ordered",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, the items you were looking at are 30% off with code SPRING30 until Sunday. Finish your first order.",
+            "email_subject": "The items you were considering are 30% off",
+            "email_body": "Hi {{first_name}},\n\nYou recently added a few things to your cart but haven't placed an order yet. Our spring sale can make that first order a little easier: 30% off everything with code SPRING30, until Sunday.\n\nThe pieces you were looking at are still waiting for you. Pick up where you left off and make your first order with 30% off."
+          },
+          "rationale": "Builds on the guaranteed fact that these customers added to cart within the last 14 days and have never ordered, so the message speaks to the items they were already considering and invites a first order; the call to action points them back to their cart-stage interest rather than loyalty or repeat buying."
+        }
+      ],
+      "tokens": [
+        5995,
+        1313
+      ],
+      "extra": {
+        "Carted, never ordered": "differentiated=true; Builds on the guaranteed fact that these customers added to cart within the last 14 days and have never ordered, so the message speaks to the items they were already considering and invites a first order; the call to action points them back to their cart-stage interest rather than loyalty or repeat buying.",
+        "One-time buyers": "differentiated=true; Every member has placed exactly one order and has been active in the last 90 days, so the message builds on having tried the store once and invites a second order while the spring sale runs. The call to action asks them to come back and choose something new, which fits the goal of a second order.",
+        "Repeat buyers": "differentiated=true; Builds on the guaranteed facts that every member has four or more orders and was active in the last 90 days, so the message thanks them as regulars and points them to the sale on what they keep coming back for. The call to action invites them to shop their usual favorites with the same code, without implying cart activity or single-order history."
+      }
+    },
+    {
+      "id": "C03",
+      "area": "Behavioral group content",
+      "name": "Overlapping behaviors resolved by order",
+      "intent": "High spenders with a recent cart come first; then other recent carters; then high spenders without a cart.",
+      "expected": "Group 2 must not imply high value (those were taken by group 1); group 3 must not mention a cart; three different angles.",
+      "status": "PASS",
+      "actual": "High spenders with cart: {{first_name}}, the items in your cart would already earn loyalty points. See your potential points on our sit… | Recent carters: {{first_name}}, finish the order you started and earn your first loyalty points. | High spenders, no cart: {{first_name}}, thank you for your past orders. Every order now earns loyalty points. See how it works. | Everyone else: {{first_name}}, every order now earns loyalty points. See how it works.",
+      "outputs": [
+        {
+          "differentiated": true,
+          "group": "High spenders with cart",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, the items in your cart would already earn loyalty points. See your potential points on our site.",
+            "email_subject": "Points on the items you were considering",
+            "email_body": "Hi {{first_name}},\n\nThe items you were looking at recently would already earn points under our new loyalty programme. Every order counts, and that includes the one you have in progress.\n\nSee what those items would earn you on our site."
+          },
+          "rationale": "Builds on the guaranteed facts of at least one order, total spend of at least 5000 TRY, and a cart updated within 14 days. The angle shows how items already in their cart would earn points, and the call to action points them to see their points on those items before checkout."
+        },
+        {
+          "differentiated": true,
+          "group": "Recent carters",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, finish the order you started and earn your first loyalty points.",
+            "email_subject": "Finish your order and earn your first points",
+            "email_body": "Hi {{first_name}},\n\nYou recently started an order with us, and it's still waiting to be finished.\n\nComplete it and your first loyalty points are on their way. Every order from our new programme earns points, so this one counts from the start.\n\nPick up where you left off on our site."
+          },
+          "rationale": "Every member has at least one order and a cart within 14 days, so the message can truthfully point to the unfinished order they started as the way to earn their first points; the call to action invites them to complete that order."
+        },
+        {
+          "differentiated": true,
+          "group": "High spenders, no cart",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, thank you for your past orders. Every order now earns loyalty points. See how it works.",
+            "email_subject": "Thanks for your orders: every one now earns points",
+            "email_body": "Hi {{first_name}},\n\nThank you for the orders you have already placed with us. From now on, every order you place earns loyalty points under our new programme.\n\nVisit our site to see how points are earned and how they add up across your orders."
+          },
+          "rationale": "Builds on the guaranteed prior orders and high lifetime spend of this group, thanking them for past purchases and tying the new points programme to those orders rather than to any current cart. The call to action invites them to see how points build up across their orders."
+        },
+        {
+          "differentiated": false,
+          "group": "Everyone else",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, every order now earns loyalty points. See how it works.",
+            "email_subject": "Every order now earns points",
+            "email_body": "Hi {{first_name}},\n\nOur new loyalty programme is live: every order earns points.\n\nSee how it works on our site."
+          },
+          "rationale": "The only guaranteed fact for this group is at least one order, and the other groups are defined by cart or spend behavior that is absent here, so no honest distinct angle exists; the message stays close to the base message in a clear, general form."
+        }
+      ],
+      "tokens": [
+        8238,
+        1548
+      ],
+      "extra": {
+        "Everyone else": "differentiated=false; The only guaranteed fact for this group is at least one order, and the other groups are defined by cart or spend behavior that is absent here, so no honest distinct angle exists; the message stays close to the base message in a clear, general form.",
+        "High spenders with cart": "differentiated=true; Builds on the guaranteed facts of at least one order, total spend of at least 5000 TRY, and a cart updated within 14 days. The angle shows how items already in their cart would earn points, and the call to action points them to see their points on those items before checkout.",
+        "High spenders, no cart": "differentiated=true; Builds on the guaranteed prior orders and high lifetime spend of this group, thanking them for past purchases and tying the new points programme to those orders rather than to any current cart. The call to action invites them to see how points build up across their orders.",
+        "Recent carters": "differentiated=true; Every member has at least one order and a cart within 14 days, so the message can truthfully point to the unfinished order they started as the way to earn their first points; the call to action invites them to complete that order."
+      }
+    },
+    {
+      "id": "C04",
+      "area": "Behavioral group content",
+      "name": "Weakly differentiated groups",
+      "intent": "Two groups split on a spend threshold with nearly identical behavior (2500-3000 vs 3000+ TRY, same recency).",
+      "expected": "The system recognizes the weak split: at least one group reported as not differentiated, or flagged as nearly the same as the other. No invented differences.",
+      "status": "PASS",
+      "actual": "Spend 3000+: {{first_name}}, our autumn collection is here. Take a look. | Spend 2500-3000: {{first_name}}, our autumn collection is here. Take a look.",
+      "outputs": [
+        {
+          "differentiated": false,
+          "group": "Spend 3000+",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, our autumn collection is here. Take a look.",
+            "email_subject": "The autumn collection is here",
+            "email_body": "Hi {{first_name}},\n\nOur new autumn collection has arrived.\n\nTake a look on our site."
+          },
+          "rationale": "This group's guaranteed behavior (at least 2 orders and at least 3000 TRY spent) differs from the 2500-3000 group only by a spend threshold, and both share the same planned angle, so there is no honest basis for a differentiated message. The base message is kept close to the original for both."
+        },
+        {
+          "differentiated": false,
+          "group": "Spend 2500-3000",
+          "language": "en",
+          "message": {
+            "sms_body": "{{first_name}}, our autumn collection is here. Take a look.",
+            "email_subject": "The autumn collection is here",
+            "email_body": "Hi {{first_name}},\n\nOur new autumn collection has arrived.\n\nTake a look on our site."
+          },
+          "rationale": "This group's guaranteed behavior is two or more orders with a total spend of 2500–3000 TRY, and its planned angle matches the 3000+ group's exactly, differing only by spend threshold, so there is no honest basis for a distinct message. The base message is kept close to the original with the same call to action."
+        }
+      ],
+      "tokens": [
+        3842,
+        909
+      ],
+      "extra": {
+        "Spend 2500-3000": "differentiated=false; This group's guaranteed behavior is two or more orders with a total spend of 2500–3000 TRY, and its planned angle matches the 3000+ group's exactly, differing only by spend threshold, so there is no honest basis for a distinct message. The base message is kept close to the original with the same call to action.",
+        "Spend 3000+": "differentiated=false; This group's guaranteed behavior (at least 2 orders and at least 3000 TRY spent) differs from the 2500-3000 group only by a spend threshold, and both share the same planned angle, so there is no honest basis for a differentiated message. The base message is kept close to the original for both."
+      }
+    }
+  ]
+}

@@ -282,3 +282,11 @@ CREATE TABLE IF NOT EXISTS delivery_attempts (
     manual      boolean     NOT NULL DEFAULT false  -- first attempt after a manual retry
 );
 CREATE INDEX IF NOT EXISTS delivery_attempts_delivery_idx ON delivery_attempts (delivery_id, id);
+
+-- Behavioral group messaging: the message angle planned when the groups were
+-- proposed, and the content call's explanation of how its message fits the
+-- group (shown to the marketer). differentiated = false means the content
+-- call found nothing in the group that justifies a different message.
+ALTER TABLE campaign_groups ADD COLUMN IF NOT EXISTS angle text NOT NULL DEFAULT '';
+ALTER TABLE campaign_groups ADD COLUMN IF NOT EXISTS rationale text NOT NULL DEFAULT '';
+ALTER TABLE campaign_groups ADD COLUMN IF NOT EXISTS differentiated boolean;

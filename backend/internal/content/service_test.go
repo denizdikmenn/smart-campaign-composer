@@ -468,7 +468,8 @@ func (g counting) Personalize(ctx context.Context, req PersonalizeRequest) (Pers
 
 func TestIndividualPersonalization(t *testing.T) {
 	ctx, pool, seg := fixture(t)
-	if _, err := pool.Exec(ctx, `UPDATE customers SET first_name = 'Zeynep' WHERE id = 12`); err != nil {
+	// Customer 5 is among the 10 picks (most active with history, ties by id).
+	if _, err := pool.Exec(ctx, `UPDATE customers SET first_name = 'Zeynep' WHERE id = 5`); err != nil {
 		t.Fatal(err)
 	}
 	var cur, peak, calls int32
@@ -495,7 +496,8 @@ func TestIndividualPersonalization(t *testing.T) {
 	if err != nil || res.Message.Status != "generated" || calls != 1 {
 		t.Fatalf("sample %+v, %v", res, err)
 	}
-	if res.Remaining != 29 || res.Fallbacks != 10 || res.Estimate.Calls != 29 {
+	// Two picks so far (customers 35 and 1); Apply fills the other 8 of 10 slots.
+	if res.Remaining != 8 || res.Fallbacks != 31 || res.Estimate.Calls != 8 {
 		t.Fatalf("estimate: remaining %d fallbacks %d %+v", res.Remaining, res.Fallbacks, res.Estimate)
 	}
 	// Only the allowed fields are sent: no email, phone or last name.
@@ -515,16 +517,34 @@ func TestIndividualPersonalization(t *testing.T) {
 	svc.Wait("individual", id)
 	v, _ = svc.Get(ctx, id)
 	in := v.Individual
-	if in.Generated != 29 || in.Failed != 1 || in.Fallback != 10 || in.Pending != 0 || !in.Applied {
+	if in.Total != MaxIndividual || in.Generated != 8 || in.Failed != 1 || in.Fallback != 1 || in.Pending != 0 || !in.Applied ||
+		len(in.Samples) != MaxIndividual || in.Limit != MaxIndividual {
 		t.Fatalf("summary %+v", in)
 	}
-	if calls != 30 || peak > int32(svc.individualWorkers) {
+	// Picks that were not personalized show the base message they will get.
+	for _, m := range in.Samples {
+		if m.Version.SMSBody == "" {
+			t.Fatalf("customer %d (%s) has no message", m.CustomerID, m.Status)
+		}
+	}
+	if calls != 9 || peak > int32(svc.individualWorkers) {
 		t.Fatalf("calls %d (sample reused), peak concurrency %d", calls, peak)
 	}
 	var reason string
-	_ = pool.QueryRow(ctx, `SELECT reason FROM personalized_messages WHERE campaign_id = $1 AND customer_id = 12`, id).Scan(&reason)
+	_ = pool.QueryRow(ctx, `SELECT reason FROM personalized_messages WHERE campaign_id = $1 AND customer_id = 5`, id).Scan(&reason)
 	if !strings.Contains(reason, "not in the brief") {
 		t.Fatalf("invented offer must be rejected: %q", reason)
+	}
+	// The cap holds: a sample for an 11th customer is refused, re-sampling a pick is not.
+	if _, err := svc.Sample(ctx, id, 15); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("11th customer: %v", err)
+	}
+	if err := svc.ApplyIndividual(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	svc.Wait("individual", id)
+	if v, _ := svc.Get(ctx, id); v.Individual.Total != MaxIndividual || calls != 10 {
+		t.Fatalf("resume: total %d, calls %d (only the failed pick is retried)", v.Individual.Total, calls)
 	}
 	rev, err := svc.Review(ctx, id, 0)
 	if err != nil || !rev.Ready {
@@ -560,7 +580,7 @@ func TestIndividualPersonalization(t *testing.T) {
 	}
 	var runs int
 	_ = pool.QueryRow(ctx, `SELECT count(*) FROM content_runs WHERE campaign_id = $1 AND kind = 'individual'`, id).Scan(&runs)
-	if runs != 30 {
+	if runs != 10 { // 9 picks + one retry of the failed pick; never one call per audience member
 		t.Fatalf("traced individual calls: %d", runs)
 	}
 }

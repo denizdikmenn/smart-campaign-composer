@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { deliveryId, href, route, type Route } from './router'
+import { computed, watchEffect } from 'vue'
+import { deliveryId, editId, href, route } from './router'
 import CampaignsView from './views/CampaignsView.vue'
 import DeliveryView from './views/DeliveryView.vue'
 import ExplorerView from './views/ExplorerView.vue'
@@ -12,7 +12,16 @@ const VIEWS = {
   '/explorer': ExplorerView,
 } as const
 
-const view = computed(() => (deliveryId.value ? DeliveryView : VIEWS[route.value as Exclude<Route, `/campaigns/${number}/delivery`>]))
+const view = computed(() => {
+  if (deliveryId.value) return DeliveryView
+  if (editId.value) return NewCampaignView // same kept-alive instance as /campaigns/new
+  return VIEWS[route.value as keyof typeof VIEWS] ?? CampaignsView
+})
+const TITLES: Record<string, string> = { '/campaigns': 'Campaigns', '/campaigns/new': 'New campaign', '/explorer': 'Audience Explorer' }
+watchEffect(() => {
+  const page = deliveryId.value ? `Delivery · Campaign #${deliveryId.value}` : editId.value ? `Campaign #${editId.value}` : TITLES[route.value]
+  document.title = page ? `${page} · Campaign Studio` : 'Campaign Studio'
+})
 const section = computed(() => (route.value.startsWith('/campaigns') ? 'campaigns' : 'explorer'))
 </script>
 
@@ -113,7 +122,7 @@ nav a.active {
 }
 @media (max-width: 820px) {
   .shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr); /* plain 1fr lets wide content stretch the page */
   }
   .sidebar {
     position: static;

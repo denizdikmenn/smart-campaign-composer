@@ -323,7 +323,7 @@ onUnmounted(() => {
           >
             <!-- Single result: static placeholders keep the 3-card layout. Not skeletons (no shimmer),
                  since nothing more is loading. Decorative; the note below carries the text for AT. -->
-            <div v-if="single" class="ghost" aria-hidden="true">
+            <div v-if="single" class="ghost-card" aria-hidden="true">
               <span class="ghost-icon">
                 <svg viewBox="0 0 16 16"><path d="M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
               </span>
@@ -341,7 +341,7 @@ onUnmounted(() => {
               @select="choose(a)"
               @preview="openPreview(a)"
             />
-            <div v-if="single" class="ghost" aria-hidden="true">
+            <div v-if="single" class="ghost-card" aria-hidden="true">
               <span class="ghost-icon">
                 <svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
               </span>
@@ -566,7 +566,7 @@ button {
 .track.ghosted {
   grid-auto-columns: minmax(0, 1fr);
 }
-.ghost {
+.ghost-card {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -580,16 +580,16 @@ button {
   transform: scale(0.96);
   animation: ghost-in 0.45s ease-out backwards;
 }
-.ghost:last-child {
+.ghost-card:last-child {
   animation-delay: 0.18s;
 }
-.ghost p {
+.ghost-card p {
   margin: 0;
   max-width: 240px;
   font-size: 13px;
   color: var(--text-muted);
 }
-.ghost .ghost-title {
+.ghost-card .ghost-title {
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
@@ -626,7 +626,7 @@ button {
   }
 }
 @media (max-width: 860px) {
-  .track.ghosted .ghost {
+  .track.ghosted .ghost-card {
     display: none;
   }
 }

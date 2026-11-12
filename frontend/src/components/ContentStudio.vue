@@ -369,7 +369,8 @@ onMounted(() => {
     <StrategyPanel v-else-if="store.step.value === 'strategy'" />
     <ReviewPanel v-else />
 
-    <nav v-if="drafts.length && !(approved && store.step.value === 'review')" class="step-nav" aria-label="Steps">
+    <!-- Not sticky on review: the approve bar owns the bottom edge there. -->
+    <nav v-if="drafts.length && !(approved && store.step.value === 'review')" class="step-nav" :class="{ flat: store.step.value === 'review' }" aria-label="Steps">
       <button v-if="store.step.value !== 'content'" type="button" class="ghost" @click="go(store.step.value === 'review' ? 'strategy' : 'content')">
         ← {{ store.step.value === 'review' ? 'Strategy' : 'Content' }}
       </button>
@@ -750,6 +751,10 @@ select,
   border: 1px solid var(--border);
   background: var(--surface);
   color: inherit;
+}
+.step-nav.flat {
+  position: static;
+  box-shadow: none;
 }
 .step-nav {
   position: sticky;

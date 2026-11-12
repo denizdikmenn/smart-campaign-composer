@@ -34,11 +34,18 @@ type Group struct {
 	Size          int                      `json:"size"`      // reachable members
 	Languages     map[string]int           `json:"languages"` // reachable members per content language
 	Content       map[string]Version       `json:"content"`
-	Status        string                   `json:"status"` // proposed | generating | generated | failed
-	Error         string                   `json:"error,omitempty"`
-	Stale         bool                     `json:"stale"` // written from an earlier base draft text
-	Issues        []Issue                  `json:"issues"`
-	remainder     bool
+	// Angle is the message strategy planned at proposal; Rationale is how the
+	// generated message builds on the group's behavior. Differentiated is
+	// false when the content call found no honest reason for a different
+	// message (nil before generation).
+	Angle          string  `json:"angle"`
+	Rationale      string  `json:"rationale"`
+	Differentiated *bool   `json:"differentiated"`
+	Status         string  `json:"status"` // proposed | generating | generated | failed
+	Error          string  `json:"error,omitempty"`
+	Stale          bool    `json:"stale"` // written from an earlier base draft text
+	Issues         []Issue `json:"issues"`
+	remainder      bool
 }
 
 func (g Group) rules() segmentation.Alternative {
@@ -82,7 +89,8 @@ func selectedDraft(c Campaign, ds []Draft) (Draft, bool) {
 }
 
 func (s *Service) groups(ctx context.Context, c Campaign, ds []Draft) ([]Group, error) {
-	rows, err := s.pool.Query(ctx, `SELECT position, name, description, match, conditions, size, languages, content, status, COALESCE(error, '')
+	rows, err := s.pool.Query(ctx, `SELECT position, name, description, match, conditions, size, languages, content, status, COALESCE(error, ''),
+		angle, rationale, differentiated
 		FROM campaign_groups WHERE campaign_id = $1 ORDER BY position = 0, position`, c.ID)
 	if err != nil {
 		return nil, err
@@ -97,7 +105,8 @@ func (s *Service) groups(ctx context.Context, c Campaign, ds []Draft) ([]Group, 
 	for rows.Next() {
 		var g Group
 		var conds, langs, content []byte
-		if err := rows.Scan(&g.Position, &g.Name, &g.Description, &g.Match, &conds, &g.Size, &langs, &content, &g.Status, &g.Error); err != nil {
+		if err := rows.Scan(&g.Position, &g.Name, &g.Description, &g.Match, &conds, &g.Size, &langs, &content, &g.Status, &g.Error,
+			&g.Angle, &g.Rationale, &g.Differentiated); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal(conds, &g.Conditions)
@@ -134,7 +143,11 @@ func (s *Service) groups(ctx context.Context, c Campaign, ds []Draft) ([]Group, 
 		}
 		out = append(out, g)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	checkGroups(c, base, hasBase, out)
+	return out, nil
 }
 
 // reachableMembers lists reachable audience members, grouped by rules.
@@ -224,7 +237,8 @@ func (s *Service) ProposeGroups(ctx context.Context, id int64) (GroupsNote, erro
 			note.Warnings = append(note.Warnings, fmt.Sprintf("“%s” was left out because its rules could not be used.", name))
 			continue
 		}
-		groups = append(groups, Group{Name: name, Description: strings.TrimSpace(p.Description), Match: rules.Match, Conditions: rules.Conditions})
+		groups = append(groups, Group{Name: name, Description: strings.TrimSpace(p.Description), Angle: strings.TrimSpace(p.Angle),
+			Match: rules.Match, Conditions: rules.Conditions})
 		if len(groups) == maxGroups-1 {
 			break
 		}
@@ -318,8 +332,8 @@ func (s *Service) storeGroups(ctx context.Context, id int64, groups []Group, not
 		for _, g := range groups {
 			conds, _ := json.Marshal(nonNilConds(g.Conditions))
 			langs, _ := json.Marshal(g.Languages)
-			if _, err := tx.Exec(ctx, `INSERT INTO campaign_groups (campaign_id, position, name, description, match, conditions, size, languages)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, id, g.Position, g.Name, g.Description, g.Match, conds, g.Size, langs); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO campaign_groups (campaign_id, position, name, description, match, conditions, size, languages, angle)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, id, g.Position, g.Name, g.Description, g.Match, conds, g.Size, langs, g.Angle); err != nil {
 				return err
 			}
 		}
@@ -477,13 +491,63 @@ func (s *Service) GenerateGroupContent(ctx context.Context, id int64) error {
 	}); err != nil {
 		return err
 	}
-	if !s.start(jobKey("groups", id), func(ctx context.Context) { s.runGroups(ctx, c, base, groups) }) {
+	// The actual members of each group (first match wins), for its profile.
+	members, err := s.reachableMembers(ctx, c, groupRules(groups))
+	if err != nil {
+		return err
+	}
+	byGroup := map[int][]segmentation.Member{}
+	for _, m := range members {
+		byGroup[m.Group] = append(byGroup[m.Group], m)
+	}
+	reqs := groupRequests(c, baseText(c, base), groups, byGroup, s.now())
+	if !s.start(jobKey("groups", id), func(ctx context.Context) { s.runGroups(ctx, c, base, groups, reqs) }) {
 		return ErrBusy
 	}
 	return nil
 }
 
-func (s *Service) runGroups(ctx context.Context, c Campaign, base Draft, groups []Group) {
+// groupRequests builds each group's content request. Groups are in position
+// order (remainder last), so a group's exclusions are the rule groups before it.
+func groupRequests(c Campaign, base Content, groups []Group, members map[int][]segmentation.Member, now time.Time) map[int]GroupContentRequest {
+	describe := func(g Group) string {
+		if g.remainder {
+			return "“" + g.Name + "”: matches none of the groups"
+		}
+		return "“" + g.Name + "”: " + strings.Join(g.ConditionText, "; ")
+	}
+	out := map[int]GroupContentRequest{}
+	for i, g := range groups {
+		var excludes, others []string
+		for j, o := range groups {
+			if j == i {
+				continue
+			}
+			if !o.remainder && !g.remainder && j < i || g.remainder && !o.remainder {
+				excludes = append(excludes, describe(o))
+			}
+			angle := o.Angle
+			if o.remainder {
+				angle = "general message without behavioral assumptions"
+			}
+			others = append(others, fmt.Sprintf("%s — angle: %s", describe(o), orDash(angle)))
+		}
+		out[g.Position] = GroupContentRequest{Brief: c.Brief, Base: base, BaseLanguage: c.BaseLanguage, Audience: c.Audience.ConditionText,
+			Name: g.Name, Description: g.Description, Angle: g.Angle, ConditionText: g.ConditionText, Excludes: excludes, Others: others,
+			Remainder: g.remainder, Profile: describeProfile(members[g.Position], now), Size: g.Size, Languages: g.languageList(),
+			MaxNameLen: c.Audience.MaxFirstNameLen}
+	}
+	return out
+}
+
+func orDash(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "–"
+	}
+	return s
+}
+
+func (s *Service) runGroups(ctx context.Context, c Campaign, base Draft, groups []Group, reqs map[int]GroupContentRequest) {
 	bt := baseText(c, base)
 	hash := hashOf(bt)
 	sem := make(chan struct{}, groupWorkers)
@@ -502,8 +566,7 @@ func (s *Service) runGroups(ctx context.Context, c Campaign, base Draft, groups 
 			pos := g.Position
 			tr := run{campaignID: c.ID, kind: "group_content", groupPosition: &pos, source: s.gen.Source(), model: s.gen.Model(),
 				input: map[string]any{"group": g.Name, "languages": langs, "base_version": base.Version}}
-			res, err := s.gen.GroupContent(ctx, GroupContentRequest{Brief: c.Brief, Base: bt, BaseLanguage: c.BaseLanguage, Name: g.Name,
-				Description: g.Description, ConditionText: g.ConditionText, Size: g.Size, Languages: langs, MaxNameLen: c.Audience.MaxFirstNameLen})
+			res, err := s.gen.GroupContent(ctx, reqs[g.Position])
 			tr.finish(start, res.Usage, err)
 			s.record(ctx, tr)
 			status, msg := "generated", ""
@@ -520,8 +583,10 @@ func (s *Service) runGroups(ctx context.Context, c Campaign, base Draft, groups 
 			wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), queryTimeout)
 			defer cancel()
 			if _, err := s.pool.Exec(wctx, `UPDATE campaign_groups SET status = $3, error = NULLIF($4, ''),
-				content = CASE WHEN $3 = 'generated' THEN $5::jsonb ELSE content END, updated_at = now()
-				WHERE campaign_id = $1 AND position = $2`, c.ID, g.Position, status, msg, cj); err != nil {
+				content = CASE WHEN $3 = 'generated' THEN $5::jsonb ELSE content END,
+				rationale = CASE WHEN $3 = 'generated' THEN $6 ELSE rationale END,
+				differentiated = CASE WHEN $3 = 'generated' THEN $7 ELSE differentiated END, updated_at = now()
+				WHERE campaign_id = $1 AND position = $2`, c.ID, g.Position, status, msg, cj, res.Rationale, res.Differentiated); err != nil {
 				s.log.Error("could not store group content", "campaign", c.ID, "group", g.Position, "error", err)
 			}
 		}()
