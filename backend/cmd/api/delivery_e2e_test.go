@@ -35,7 +35,7 @@ func TestDeliveryEndToEnd(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	seg := segmentation.NewService(pool, segmentation.Mock{}, log)
 	camp := content.NewService(pool, content.Mock{}, seg, log)
-	h := newHandler(log, fakeDB{}, nil, seg, camp, &deliveryHandler{log: log, pool: pool, src: approvedMessages(camp)})
+	h := newHandler(log, fakeDB{}, nil, seg, camp, &deliveryHandler{log: log, pool: pool, src: delivery.ContentSource(camp)})
 
 	call := func(method, path, body string, out any) int {
 		t.Helper()

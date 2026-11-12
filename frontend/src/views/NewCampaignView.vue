@@ -9,7 +9,7 @@ import { editId, href, navigate, route } from '../router'
 
 const number = new Intl.NumberFormat('en-US')
 
-// Planned stages: DESIGN.md §2 stage nav, covering REQUIREMENTS.md's workflow
+// Planned stages: DESIGN.md §2 stage nav, covering the case workflow
 // (brief -> audience, content generation, human review/approval, delivery + monitoring).
 const STEPS = computed(() => [
   { label: 'Audience', hint: 'Brief and targeting', available: true },

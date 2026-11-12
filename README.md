@@ -2,19 +2,20 @@
 
 An AI-powered campaign composer (case study). Marketers describe a campaign in natural language, Claude
 proposes audience rules and SMS/email copy, a human approves, and the campaign is sent through mock providers. All customer data is
-synthetic and no real messages are sent. See [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md).
+synthetic and no real messages are sent.
 
 ## Status
 
 **Built:** schema and deterministic seed data, a read-only Audience Explorer, Claude audience suggestions with
 backend validation, streamed SMS/email drafts (unlimited, editable, regenerated, duplicated or written by hand),
 optional A/B tests of 2–3 drafts, automatic localization by recipient language, Behavioral-group and Individual AI
-personalization with cost estimates, a deterministic consistency gate and explicit approval, then an explicit Send:
-a separate delivery worker sends through rate-limited mock SMS/email providers with retries and idempotency, and a
-live monitoring page shows progress by channel, variant and group. Without `ANTHROPIC_API_KEY`, deterministic mock
-generators are used. Design decisions: [DECISIONS.md](DECISIONS.md).
+personalization with cost estimates, a deterministic consistency gate and explicit approval, then an explicit Send
+(now or scheduled): a separate delivery worker sends through rate-limited mock SMS/email providers with retries and
+idempotency, and a live monitoring page shows progress by channel, variant and group. Draft campaigns can be resumed
+from the Campaigns list. Without `ANTHROPIC_API_KEY`, deterministic mock generators are used.
 
-**Not built yet:** `ai-sessions/`, resuming a draft campaign from the list.
+**Not built:** a CI pipeline, frontend unit tests, pausing or cancelling a campaign that is already sending, and
+delivery receipts (opens, clicks). See [Known limitations](#known-limitations).
 
 ## Run
 
@@ -62,6 +63,11 @@ confirm. The API creates one job per recipient and channel and returns at once. 
 page polls progress once a second until every message is finished. The page and its numbers come from PostgreSQL, so
 they survive refreshes and worker restarts. Approved campaigns are listed on the Campaigns page.
 
+Instead of sending now, the campaign can be **scheduled** for a later time (shown in the browser's time zone, stored
+in UTC) and the schedule changed or cancelled until it starts. The worker checks for due campaigns every 5 seconds
+and dispatches them exactly like Send, with the audience and consent read at that moment. If nobody is reachable by
+then, the reason is shown on the page instead of being retried.
+
 The page also lists every message (recipient, channel, status, attempts, last error) with filters and paging. **History**
 shows each provider call: time, latency, HTTP status, code and outcome. **Retry** requeues one message that failed
 temporarily, and **Retry N failed** requeues all of them. A retry reuses the same delivery record and idempotency key,
@@ -90,18 +96,20 @@ JSON unless noted.
 | `PUT /api/campaigns/{id}/variants` | `{versions: [a, b, c]}` sets 2–3 drafts as Variants A–C; `[]` ends the A/B test |
 | `PUT /api/campaigns/{id}/personalization` | `{mode: standard\|groups\|individual, base_version}` |
 | `POST …/groups/propose`, `GET …/groups/estimate`, `POST …/groups/generate`, `GET …/groups/{pos}/examples`, `PUT …/groups/{pos}` | Behavioral groups: propose (1 AI call), cost estimate, background generation (one call per group), representative members, edits |
-
-Behavioral groups are planned with a **message angle** each: how the group's message should differ, grounded only in its rules. Each group's content call gets the brief, the base message, the planned angle, what's guaranteed for every member (audience and group rules), the earlier groups it excludes (first match wins), the group's actual behavioral profile (tendencies, never stated as facts) and the other groups' angles. It returns the messages plus a **rationale** shown on the group card ("Why this message"). It may answer that a group has no honest reason for a different message instead of inventing one. Deterministic warnings flag groups planned with the same angle, near-identical messages, a group that repeats the base message, and cart mentions a group's rules don't guarantee.
 | `GET …/individual/candidates`, `POST …/individual/sample`, `GET …/individual/estimate`, `POST …/individual/apply`, `POST …/individual/stop` | Individual personalization, capped at 10 customers in this demo (samples included; the most active customers with history). Everyone else gets the base draft, and picks that weren't personalized show it too. Sample, estimate, explicit confirm (background, 4 concurrent calls), stop/resume |
 | `GET /api/campaigns/{id}/review?version=` | Consistency gate, recipient plan (per variant/group/language/channel/source) and AI cost |
 | `POST /api/campaigns/{id}/approve` | `{version}` (Standard draft; 0 with variants): re-checks audience and gate, then freezes a snapshot (`409` once approved, `422` with `issues` if invalid). Sends nothing |
 | `GET /api/campaigns` | The 20 most recent campaigns with approval and delivery status |
 | `POST /api/campaigns/{id}/send` | Queues the approved campaign once (`202` + delivery report). Idempotent: repeating it returns the current state. `409` if not approved or nobody is reachable |
-| `GET /api/campaigns/{id}/delivery` | Delivery report: status (`not_sent`, `queued`, `sending`, `completed`, `completed_with_failures`), totals, per-channel/variant/group counts, retries, top error reasons, next retry, worker heartbeat |
+| `POST /api/campaigns/{id}/schedule`, `DELETE /api/campaigns/{id}/schedule` | `{send_at}` (RFC 3339, at least a minute ahead) schedules or reschedules the send; `DELETE` cancels it. `409` once sending has started. Both return the delivery report |
+| `GET /api/campaigns/{id}/delivery` | Delivery report: status (`not_sent`, `scheduled`, `queued`, `sending`, `completed`, `completed_with_failures`), totals, per-channel/variant/group counts, retries, top error reasons, next retry, worker heartbeat |
 | `GET /api/campaigns/{id}/messages?status=&channel=&page=&page_size=` | Recipient-level deliveries (status: `pending`, `retrying`, `sent`, `failed`, `skipped`; max 100 per page) |
 | `GET /api/campaigns/{id}/messages/{mid}` | One delivery with its content and attempt history |
 | `POST /api/campaigns/{id}/messages/{mid}/retry`, `POST /api/campaigns/{id}/retry-failed` | Requeue failed deliveries that weren't permanently rejected (`409` with the reason for a single message that can't be retried) |
 | `GET /api/metrics` | Queue depth (due, scheduled retries, in flight, oldest due age), per-channel status counts, sent in the last minute, attempts, worker heartbeat |
+| `GET /api/admin/segmentation/runs?status=&limit=`, `GET /api/admin/segmentation/runs/{id}` | Audience-generation traces (brief, raw model output, validation notes, tokens). Unauthenticated, like the rest of this demo |
+
+Behavioral groups are planned with a **message angle** each: how the group's message should differ, grounded only in its rules. Each group's content call gets the brief, the base message, the planned angle, what's guaranteed for every member (audience and group rules), the earlier groups it excludes (first match wins), the group's actual behavioral profile (tendencies, never stated as facts) and the other groups' angles. It returns the messages plus a **rationale** shown on the group card ("Why this message"). It may answer that a group has no honest reason for a different message instead of inventing one. Deterministic warnings flag groups planned with the same angle, near-identical messages, a group that repeats the base message, and cart mentions a group's rules don't guarantee.
 
 After approval, `GET …/review` returns the recipient plan of the approved content (the pre-send summary).
 
@@ -132,8 +140,7 @@ summed from these rows with the list prices in `internal/llm`.
 - After the audience, the composer has three steps: Content (drafts), Strategy (single message, A/B test, behavioral
   groups or individual: one choice) and Review & approve. Switching strategy never deletes drafts.
 - `content/resolve.go` resolves each recipient and channel to final text plus variant, group, language and source. The
-  review screen's plan uses it, and the `deliveries` table (with `delivery.Breakdown`) is the contract for the upcoming
-  delivery pipeline and monitoring.
+  review plan and the delivery pipeline both use it, so what is sent matches what was reviewed.
 
 ## Data and audiences
 
@@ -179,12 +186,14 @@ frontend/                   Vue 3 + TypeScript + Vite dashboard
 - Consent is a boolean per channel, with no timestamp or audit history.
 - Seed phone numbers are random Turkish mobile-format numbers and could coincide with real ones; nothing is ever sent.
 - SMS length is counted in Unicode characters; GSM-7 vs. UCS-2 encoding (e.g. Turkish letters) and multi-part SMS are not modelled.
-- Approved campaigns can be reopened (list and delivery URL); draft campaigns cannot be resumed after a reload yet.
 - Only one generation per campaign runs at a time, and group/individual generation runs in-process; both are enforced
   in memory (single API instance). After a restart, “Resume” continues pending individual messages.
 - Delivery runs in one worker instance; the 100/s per-channel limit is enforced in that process. Mock providers report
   acceptance only, so monitoring shows "sent", never delivered, opened or clicked (no automatic A/B winner either).
-  See [DECISIONS.md](DECISIONS.md#known-limitations).
-- The audience–message consistency checks are a few keyword rules (first purchase / welcome back) and only warn.
+- The audience–message consistency checks are a few keyword rules (first purchase / welcome back). They block approval
+  only when the audience rules guarantee everyone has ordered before; otherwise they warn.
 - The invented-facts check is a heuristic warning, not a guarantee.
-# smart-campaign-composer
+- The mock providers run inside the worker process (no HTTP hop), and their simulated 429s are random rather than
+  triggered by exceeding a provider-side limit.
+- A scheduled send re-reads the audience when it starts; the SMS length check uses the longest first name at approval
+  time, and rendered messages are not length-checked again at send time.

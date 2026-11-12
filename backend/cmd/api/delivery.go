@@ -112,11 +112,6 @@ func (h *deliveryHandler) retry(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
-// approvedMessages adapts the content service's resolver to the delivery queue.
-func approvedMessages(svc *content.Service) delivery.MessageSource {
-	return delivery.ContentSource(svc)
-}
-
 // POST /api/campaigns/{id}/send: creates the delivery jobs once and returns
 // at once (202). Repeating it returns the current state and creates nothing.
 func (h *deliveryHandler) send(w http.ResponseWriter, r *http.Request) {

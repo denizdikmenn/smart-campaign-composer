@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 /**
- * Campaign progress across the planned stages (DESIGN.md §2; REQUIREMENTS.md
+ * Campaign progress across the planned stages (DESIGN.md §2 and the case
  * workflow). Stages that aren't built are shown as "Coming soon" and are never
  * clickable, so nothing looks usable that isn't.
  */

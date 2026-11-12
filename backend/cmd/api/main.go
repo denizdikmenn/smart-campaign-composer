@@ -18,6 +18,7 @@ import (
 	"github.com/smart-campaign-composer/backend/internal/content"
 	"github.com/smart-campaign-composer/backend/internal/customers"
 	"github.com/smart-campaign-composer/backend/internal/db"
+	"github.com/smart-campaign-composer/backend/internal/delivery"
 	"github.com/smart-campaign-composer/backend/internal/seed"
 	"github.com/smart-campaign-composer/backend/internal/segmentation"
 )
@@ -81,7 +82,7 @@ func run(log *slog.Logger) error {
 	seg := segmentation.NewService(pool, gen, log)
 
 	camp := content.NewService(pool, writer, seg, log).WithLifetime(ctx)
-	del := &deliveryHandler{log: log, pool: pool, src: approvedMessages(camp)}
+	del := &deliveryHandler{log: log, pool: pool, src: delivery.ContentSource(camp)}
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           newHandler(log, pool, customers.NewStore(pool), seg, camp, del),
