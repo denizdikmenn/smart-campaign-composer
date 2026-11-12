@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import type { Customer, CustomerDetail } from '../api'
+import LangChip from './LangChip.vue'
+import Avatar from './Avatar.vue'
 
 const props = defineProps<{
   /** Row the drawer was opened from; null = closed. */
@@ -14,7 +16,6 @@ const emit = defineEmits<{ close: []; retry: [] }>()
 const dateFormat = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 })
 const date = (iso: string | null | undefined) => (iso ? dateFormat.format(new Date(iso)) : '—')
-const initials = (c: Customer) => `${c.first_name.charAt(0)}${c.last_name.charAt(0)}`.toUpperCase()
 
 // Prefer the fresh detail, fall back to the row data while it loads.
 const c = computed(() => (props.customer ? (props.detail?.id === props.customer.id ? props.detail : props.customer) : null))
@@ -76,7 +77,7 @@ function onKey(e: KeyboardEvent) {
       <div v-if="c" class="overlay" @click.self="emit('close')">
         <aside ref="panel" class="drawer" role="dialog" aria-modal="true" aria-labelledby="customer-title">
           <header>
-            <span class="avatar" aria-hidden="true">{{ initials(c) }}</span>
+            <Avatar :name="`${c.first_name} ${c.last_name}`" :size="48" />
             <div class="title">
               <p class="eyebrow">Customer #{{ c.id }}</p>
               <h2 id="customer-title">{{ c.first_name }} {{ c.last_name }}</h2>
@@ -105,7 +106,7 @@ function onKey(e: KeyboardEvent) {
               </div>
               <div>
                 <dt>Language</dt>
-                <dd class="upper">{{ c.language }}</dd>
+                <dd><LangChip :lang="c.language" /></dd>
               </div>
             </dl>
           </section>

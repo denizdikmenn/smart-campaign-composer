@@ -14,6 +14,8 @@ import {
 } from '../api'
 import { useCampaign } from '../campaign'
 import AiProgress from './AiProgress.vue'
+import Avatar from './Avatar.vue'
+import LangChip from './LangChip.vue'
 
 const store = useCampaign()
 const { view, approved } = store
@@ -73,7 +75,7 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
         Sample customer
         <select v-model.number="customerId" :disabled="!candidates.length">
           <option v-for="c in candidates" :key="c.id" :value="c.id">
-            {{ c.first_name }} · {{ c.city }} · {{ c.language }} · {{ c.order_count }} orders{{ c.has_history ? '' : ' · no history' }}
+            {{ c.first_name }} · {{ c.city }} · {{ languageName(c.language) }} · {{ c.order_count }} orders{{ c.has_history ? '' : ' · no history' }}
           </option>
         </select>
       </label>
@@ -110,7 +112,7 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
       <div class="box">
         <h3>
           Result <span class="chip" :class="{ ok: sample.message.status === 'generated', bad: sample.message.status === 'failed' }">{{ sample.message.status }}</span>
-          <span class="muted">· {{ languageName(sample.message.language) }}</span>
+          <LangChip :lang="sample.message.language" />
         </h3>
         <p v-if="sample.message.reason" class="muted">{{ sample.message.reason }}</p>
         <template v-if="sample.message.status === 'generated'">
@@ -169,7 +171,7 @@ const days = (n: number | null) => (n == null ? 'never' : `${n} days ago`)
       <ul>
         <li v-for="m in progress.samples" :key="m.customer_id" class="box">
           <p>
-            <strong>{{ m.first_name }}</strong> · {{ languageName(m.language) }}
+            <Avatar :name="m.first_name" :size="26" /> <strong>{{ m.first_name }}</strong> <LangChip :lang="m.language" />
             <span class="chip" :class="{ ok: m.status === 'generated', bad: m.status === 'failed' }">{{ m.status }}</span>
           </p>
           <p v-if="m.reason" class="muted">{{ m.reason }}</p>

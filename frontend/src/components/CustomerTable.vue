@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { Customer, SortField, SortOrder } from '../api'
+import LangChip from './LangChip.vue'
+import Avatar from './Avatar.vue'
 
 defineProps<{
   customers: Customer[]
@@ -39,7 +41,6 @@ const COLUMNS: Column[] = [
 const dateFormat = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' })
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 })
 const date = (iso: string | null) => (iso ? dateFormat.format(new Date(iso)) : '—')
-const initials = (c: Customer) => `${c.first_name.charAt(0)}${c.last_name.charAt(0)}`.toUpperCase()
 
 function toggle(col: Column, current: SortField | '', order: SortOrder) {
   if (!col.field) return
@@ -92,7 +93,7 @@ const ariaSort = (col: Column, current: SortField | '', order: SortOrder) =>
       >
         <td class="first">
           <div class="who">
-            <span class="avatar" aria-hidden="true">{{ initials(c) }}</span>
+            <Avatar :name="`${c.first_name} ${c.last_name}`" :size="32" />
             <span class="names">
               <strong>{{ c.first_name }} {{ c.last_name }}</strong>
               <small>{{ c.email }}</small>
@@ -100,7 +101,7 @@ const ariaSort = (col: Column, current: SortField | '', order: SortOrder) =>
           </div>
         </td>
         <td data-label="City">{{ c.city }}</td>
-        <td data-label="Lang"><span class="lang">{{ c.language }}</span></td>
+        <td data-label="Lang"><LangChip :lang="c.language" short plain /></td>
         <td data-label="Orders" class="num">{{ c.orders }}</td>
         <td data-label="Lifetime value" class="num">{{ c.orders ? money.format(c.total_spent) : '—' }}</td>
         <td data-label="Last order">{{ date(c.last_order_at) }}</td>

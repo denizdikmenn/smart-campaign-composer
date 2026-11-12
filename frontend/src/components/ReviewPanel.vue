@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { approveCampaign, CampaignError, formatTokens, formatUSD, languageName, reviewCampaign, type Issue, type ResolvedMessage, type Review } from '../api'
+import { approveCampaign, CampaignError, formatTokens, formatUSD, reviewCampaign, type Issue, type ResolvedMessage, type Review } from '../api'
 import { useCampaign } from '../campaign'
 import { deliveryHref } from '../router'
 import AiProgress from './AiProgress.vue'
+import LangChip from './LangChip.vue'
 
 /**
  * Final review: the backend's consistency gate, who receives what (resolved
@@ -187,7 +188,7 @@ const multiLang = computed(() => previews.value.some((b) => b.channels.some((c) 
             (people may get both)
           </p>
           <p class="muted">
-            <template v-for="(n, l) in review.plan.by_language" :key="l">{{ languageName(String(l)) }} {{ number.format(n) }} · </template>
+            <span class="lang-row"><LangChip v-for="(n, l) in review.plan.by_language" :key="l" :lang="String(l)" :count="n" /></span>
             <template v-for="(n, s) in review.plan.by_source" :key="s">{{ sourceLabel[String(s)] }} {{ number.format(n) }} · </template>
           </p>
         </div>
@@ -224,7 +225,7 @@ const multiLang = computed(() => previews.value.some((b) => b.channels.some((c) 
         <h3>Fix before approving</h3>
         <ul>
           <li v-for="i in blocking" :key="i.scope + i.code + i.language + i.message">
-            <strong v-if="i.scope">{{ i.scope }}<template v-if="i.language"> ({{ languageName(i.language) }})</template>:</strong> {{ i.message }}
+            <strong v-if="i.scope">{{ i.scope }}<template v-if="i.language"> <LangChip :lang="i.language" plain /></template>:</strong> {{ i.message }}
           </li>
         </ul>
       </div>
@@ -232,7 +233,7 @@ const multiLang = computed(() => previews.value.some((b) => b.channels.some((c) 
         <h3>Check these</h3>
         <ul>
           <li v-for="i in warnings" :key="i.scope + i.code + i.language + i.message">
-            <strong v-if="i.scope">{{ i.scope }}<template v-if="i.language"> ({{ languageName(i.language) }})</template>:</strong> {{ i.message }}
+            <strong v-if="i.scope">{{ i.scope }}<template v-if="i.language"> <LangChip :lang="i.language" plain /></template>:</strong> {{ i.message }}
           </li>
         </ul>
 
@@ -270,10 +271,10 @@ const multiLang = computed(() => previews.value.some((b) => b.channels.some((c) 
                     :aria-pressed="shownLang(b, ch) === l"
                     @click="previewLang[`${b.key}/${ch.channel}`] = l"
                   >
-                    {{ languageName(l) }}
+                    <LangChip :lang="l" plain />
                   </button>
                 </div>
-                <span v-else class="lang-only">{{ languageName(ch.langs[0]!) }}</span>
+                <LangChip v-else :lang="ch.langs[0]!" />
               </header>
               <Transition name="swap" mode="out-in">
                 <div :key="shownLang(b, ch)" class="message" :lang="shownLang(b, ch)">
@@ -452,6 +453,13 @@ const multiLang = computed(() => previews.value.some((b) => b.channels.some((c) 
   stroke-linejoin: round;
 }
 /* Segmented language switch: reads as a setting of this card, not a new item. */
+.lang-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
 .langs {
   display: inline-flex;
   padding: 2px;

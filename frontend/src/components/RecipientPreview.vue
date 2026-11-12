@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { contentLanguage, languageName, MAX_SMS, MAX_SUBJECT, previewCustomers, render, type CampaignAudience, type PreviewCustomer } from '../api'
+import { contentLanguage, MAX_SMS, MAX_SUBJECT, previewCustomers, render, type CampaignAudience, type PreviewCustomer } from '../api'
+import Avatar from './Avatar.vue'
+import LangChip from './LangChip.vue'
 
 /** Messages rendered for a few real (synthetic) customers of the audience. */
 const props = defineProps<{
@@ -45,7 +47,7 @@ const unresolved = (s: string) => /\{\{|\}\}/.test(s)
 <template>
   <section class="preview" aria-labelledby="preview-title">
     <h3 id="preview-title">Recipient preview</h3>
-    <p class="note">{{ languageName(language) }} · sample customers</p>
+    <p class="note"><LangChip :lang="language" plain /> · sample customers</p>
     <ul v-if="loading" class="list" aria-label="Loading sample recipients" role="status">
       <li v-for="n in 3" :key="n"><div class="skeleton-line short" /><div class="skeleton" style="height: 56px" /></li>
     </ul>
@@ -53,10 +55,15 @@ const unresolved = (s: string) => /\{\{|\}\}/.test(s)
     <p v-else-if="!sample.length" class="note">No customers to preview.</p>
     <ul v-else class="list">
       <li v-for="c in sample" :key="c.email">
-        <p class="who">
-          <strong>{{ c.first_name }} {{ c.last_name }}</strong>
-          <span>{{ c.city }} · speaks {{ c.language }}<template v-if="contentLanguage(c.language) !== c.language"> (gets {{ languageName(contentLanguage(c.language)) }})</template> · {{ channel === 'sms' ? (c.sms_consent ? 'SMS opted in' : 'no SMS consent') : (c.email_consent ? 'email opted in' : 'no email consent') }}</span>
-        </p>
+        <div class="who">
+          <Avatar :name="`${c.first_name} ${c.last_name}`" :size="32" />
+          <div class="who-text">
+            <strong>{{ c.first_name }} {{ c.last_name }}</strong>
+            <span>{{ c.city }} · {{ channel === 'sms' ? (c.sms_consent ? 'SMS opted in' : 'no SMS consent') : (c.email_consent ? 'email opted in' : 'no email consent') }}</span>
+          </div>
+          <LangChip :lang="c.language" />
+          <span v-if="contentLanguage(c.language) !== c.language" class="gets">gets <LangChip :lang="contentLanguage(c.language)" plain /></span>
+        </div>
         <template v-if="channel === 'sms'">
           <p class="bubble">{{ render(smsBody, c.first_name) || '—' }}</p>
           <p class="meta" :class="{ over: len(render(smsBody, c.first_name)) > MAX_SMS }">
@@ -113,11 +120,19 @@ h3 {
 .who {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 8px;
-  margin: 0 0 6px;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 8px;
   font-size: 13px;
 }
-.who span {
+.who-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+.who-text span,
+.gets {
   color: var(--text-muted);
   font-size: 12px;
 }

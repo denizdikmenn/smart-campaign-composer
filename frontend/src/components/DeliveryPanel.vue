@@ -2,7 +2,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   getDelivery,
-  languageName,
   retryFailed,
   reviewCampaign,
   sendCampaign,
@@ -14,6 +13,7 @@ import {
 } from '../api'
 import AiProgress from './AiProgress.vue'
 import DeliveryMessages from './DeliveryMessages.vue'
+import LangChip from './LangChip.vue'
 
 /**
  * Sending and live monitoring of an approved campaign. Before sending: what
@@ -204,8 +204,8 @@ const tiles = computed(() => {
           <div class="box">
             <h3>Content</h3>
             <p>{{ strategy }}</p>
-            <p class="muted">
-              <template v-for="(n, l, i) in plan.by_language" :key="l">{{ i ? ' · ' : '' }}{{ languageName(String(l)) }} {{ number.format(n) }}</template>
+            <p class="langs">
+              <LangChip v-for="(n, l) in plan.by_language" :key="l" :lang="String(l)" :count="n" />
             </p>
           </div>
         </div>
@@ -339,6 +339,11 @@ const tiles = computed(() => {
 </template>
 
 <style scoped>
+.langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .loading-boxes {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

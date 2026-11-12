@@ -7,6 +7,7 @@ import ChannelEditor from './ChannelEditor.vue'
 import RecipientPreview from './RecipientPreview.vue'
 import ReviewPanel from './ReviewPanel.vue'
 import StrategyPanel from './StrategyPanel.vue'
+import LangChip from './LangChip.vue'
 
 export type { Step, StudioPhase }
 
@@ -231,7 +232,7 @@ onMounted(() => {
             :aria-selected="lang === l"
             @click="lang = l"
           >
-            {{ languageName(l) }}
+            <LangChip :lang="l" plain />
             <span class="count">{{ number.format(audience.languages?.[l] ?? 0) }}</span>
             <span v-if="langStatus(l) === 'base'" class="tag">base</span>
             <span v-else-if="langStatus(l) === 'stale'" class="tag warn">out of date</span>
